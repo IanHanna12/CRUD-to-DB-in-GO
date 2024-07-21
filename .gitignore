@@ -1,0 +1,46 @@
+# IDE and editor configuration files
+.idea/
+.vscode/
+*.iml
+
+# Go build artifacts
+bin/
+pkg/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go dependency directories
+vendor/
+
+# Environment files
+.env
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*.bak
+*.old
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Dependency directories for other languages (if applicable)
+node_modules/
+target/
+dist/
+
+# Docker-related files
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Ignore the docker-compose.yml file if you don't want to track it
+docker-compose.yml
+docker-compose.yaml
