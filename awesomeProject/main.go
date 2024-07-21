@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/IanHanna/CRUD-to-DB-in-GO/app"
 	"log"
-	"my-awesome-project/app"
 	"net/http"
 	"os"
 )
@@ -17,11 +17,11 @@ func main() {
 	}
 
 	http.HandleFunc("/create-item", app.HandleCreateItem)
-	http.HandleFunc("/customers", app.HandleGetAllItems)
-	http.HandleFunc("/customer", app.HandleGetItemByID)
-	http.HandleFunc("/update", app.HandleUpdateItem)
-	http.HandleFunc("/delete", app.HandleDeleteItemByID)
-	http.HandleFunc("/deleteAll", app.HandleDeleteAllItems)
+	http.HandleFunc("/items", app.HandleGetAllItems)
+	http.HandleFunc("/item", app.HandleGetItemByID)
+	http.HandleFunc("/update-item", app.HandleUpdateItem)
+	http.HandleFunc("/delete-item", app.HandleDeleteItemByID)
+	http.HandleFunc("/delete-all-items", app.HandleDeleteAllItems)
 
 	fmt.Printf("Server starting on port %s...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
