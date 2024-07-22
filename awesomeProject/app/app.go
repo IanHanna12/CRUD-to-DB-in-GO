@@ -199,6 +199,10 @@ func HandleUpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate a new UUID
+	newUUID := uuid.New()
+	item.ID = newUUID
+
 	if err := UpdateItem(item); err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
