@@ -98,7 +98,7 @@ func DeleteItemByID(id uuid.UUID) error {
 }
 
 func DeleteAllItems() error {
-	if err := DB.Exec("DELETE FROM items").Error; err != nil { // Delete all items from the database
+	if err := DB.Exec("DELETE FROM items").Error; err != nil {
 		log.Printf("Error deleting all items: %v", err)
 		return err
 	}
