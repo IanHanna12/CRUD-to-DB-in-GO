@@ -1,14 +1,23 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
+	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"net/http"
 	"strings"
-
-	"github.com/google/uuid"
+	"time"
 )
+
+var ctx = context.Background()
+var rdb = redis.NewClient(&redis.Options{
+	Addr: "localhost:6379",
+	DB:   0,
+})
 
 func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -60,18 +69,40 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := db.GetItemByID(id)
-	if err != nil {
-		if err.Error() == "record not found" {
-			http.Error(w, "Item not found", http.StatusNotFound)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Try to get the item from Redis cache
+	cacheKey := "item:" + id.String()
+	cachedItem, err := rdb.Get(ctx, cacheKey).Result()
+	if errors.Is(err, redis.Nil) {
+		// Cache miss, get the item from the database
+		item, err := db.GetItemByID(id)
+		if err != nil {
+			if err.Error() == "record not found" {
+				http.Error(w, "Item not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
 		}
-		return
-	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+		// Cache the item in Redis
+		itemJSON, err := json.Marshal(item)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rdb.Set(ctx, cacheKey, itemJSON, 10*time.Minute)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(itemJSON)
+	} else if err != nil {
+		// Some other error occurred
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	} else {
+		// Cache hit, return the cached item
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(cachedItem))
+	}
 }
 
 func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +130,10 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invalidate the cache
+	cacheKey := "item:" + id.String()
+	rdb.Del(ctx, cacheKey)
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(item)
 }
@@ -120,6 +155,10 @@ func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate the cache
+	cacheKey := "item:" + id.String()
+	rdb.Del(ctx, cacheKey)
 
 	w.WriteHeader(http.StatusOK)
 }
