@@ -1,24 +1,28 @@
 package main
 
 import (
-	handlers "github.com/IanHanna/CRUD-to-DB-in-GO/internal"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"log"
 	"net/http"
+
+	"github.com/IanHanna/CRUD-to-DB-in-GO/internal"
+	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
+	"github.com/gorilla/mux"
 )
 
 func main() {
 	db.InitDB()
 
-	http.HandleFunc("/create-item", handlers.CreateItemHandler) // Register the correct endpoint
-	http.HandleFunc("/items/all", handlers.GetAllItemsHandler)
-	http.HandleFunc("/items/get", handlers.GetItemByIDHandler)
-	http.HandleFunc("/items/update", handlers.UpdateItemHandler)
-	http.HandleFunc("/items/delete", handlers.DeleteItemByIDHandler)
-	http.HandleFunc("/items/deleteAll", handlers.DeleteAllItemsHandler) // Register the new handler
+	router := mux.NewRouter()
+
+	router.HandleFunc("/items", handlers.CreateItemHandler).Methods("POST")
+	router.HandleFunc("/items", handlers.GetAllItemsHandler).Methods("GET")
+	router.HandleFunc("/items/{id}", handlers.GetItemByIDHandler).Methods("GET")
+	router.HandleFunc("/items/{id}", handlers.UpdateItemHandler).Methods("PUT")
+	router.HandleFunc("/items/{id}", handlers.DeleteItemByIDHandler).Methods("DELETE")
+	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
 
 	log.Println("Starting server on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", router); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
 }

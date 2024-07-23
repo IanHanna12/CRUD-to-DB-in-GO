@@ -5,11 +5,17 @@ import (
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
 
 func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var item model.Item
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -26,6 +32,11 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	items, err := db.GetAllItems()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -37,7 +48,12 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
@@ -59,12 +75,25 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid UUID", http.StatusBadRequest)
+		return
+	}
+
 	var item model.Item
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	item.ID = id
 	if err := db.UpdateItem(item); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -75,7 +104,12 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("id")
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
@@ -91,6 +125,11 @@ func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	if err := db.DeleteAllItems(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
