@@ -16,6 +16,7 @@ type Item struct {
 	ID       uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
 	Blogname string    `json:"blogname" gorm:"column:blogname"`
 	Author   string    `json:"author" gorm:"column:author"`
+	Content  string    `json:"content" gorm:"column:content"`
 }
 
 var DB *gorm.DB // Database connection
@@ -78,7 +79,19 @@ func UpdateItem(item Item) error {
 		return errors.New("blogname and author are required")
 	}
 
-	if err := DB.Save(&item).Error; err != nil {
+	var existingItem Item
+	if err := DB.First(&existingItem, "id = ?", item.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("item not found")
+		}
+		return err
+	}
+
+	existingItem.Blogname = item.Blogname
+	existingItem.Author = item.Author
+	existingItem.Content = item.Content
+
+	if err := DB.Save(&existingItem).Error; err != nil {
 		return err
 	}
 	return nil
@@ -198,10 +211,6 @@ func HandleUpdateItem(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "blogname and author are required", http.StatusBadRequest)
 		return
 	}
-
-	// Generate a new UUID
-	newUUID := uuid.New()
-	item.ID = newUUID
 
 	if err := UpdateItem(item); err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
