@@ -1,16 +1,17 @@
 package main
 
 import (
-	"log"
-	"net/http"
-
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal"
+	handlers "github.com/IanHanna/CRUD-to-DB-in-GO/internal"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/gorilla/mux"
+	"log"
+	"net/http"
+	"time"
 )
 
 func main() {
-	db.InitDB()
+	db := db.InitDB()
+	handlers.InitHandlers(db)
 
 	router := mux.NewRouter()
 
@@ -21,8 +22,16 @@ func main() {
 	router.HandleFunc("/items/{id}", handlers.DeleteItemByIDHandler).Methods("DELETE")
 	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
 
-	log.Println("Starting server on :8081")
-	if err := http.ListenAndServe(":8081", router); err != nil {
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         ":8080",
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	log.Println("Starting server on :8080")
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
 }

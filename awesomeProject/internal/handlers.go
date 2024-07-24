@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+	"gorm.io/gorm"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -15,23 +17,24 @@ import (
 
 var ctx = context.Background()
 var rdb = redis.NewClient(&redis.Options{
-	Addr: "localhost:6379",
+	Addr: "localhost:8080",
 	DB:   0,
 })
 
-func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+var DB *gorm.DB
 
+func InitHandlers(db *gorm.DB) {
+	DB = db
+}
+
+func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 	var item model.Item
 	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := db.CreateItem(&item); err != nil {
+	if err := DB.Create(&item).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -41,13 +44,8 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	items, err := db.GetAllItems()
-	if err != nil {
+	var items []model.Item
+	if err := DB.Find(&items).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -57,60 +55,53 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	log.Println("GetItemByIDHandler: Started")
 
-	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
+	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
+		log.Printf("GetItemByIDHandler: Invalid UUID: %s", idStr)
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
 		return
 	}
+	log.Printf("GetItemByIDHandler: Parsed UUID: %s", id)
 
-	// Try to get the item from Redis cache
 	cacheKey := "item:" + id.String()
+
 	cachedItem, err := rdb.Get(ctx, cacheKey).Result()
-	if errors.Is(err, redis.Nil) {
-		// Cache miss, get the item from the database
-		item, err := db.GetItemByID(id)
-		if err != nil {
-			if err.Error() == "record not found" {
-				http.Error(w, "Item not found", http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		// Cache the item in Redis
-		itemJSON, err := json.Marshal(item)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		rdb.Set(ctx, cacheKey, itemJSON, 10*time.Minute)
-
-		w.WriteHeader(http.StatusOK)
-		w.Write(itemJSON)
-	} else if err != nil {
-		// Some other error occurred
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	} else {
-		// Cache hit, return the cached item
-		w.WriteHeader(http.StatusOK)
+	if err == nil {
+		log.Println("GetItemByIDHandler: Cache hit, returning cached item")
 		w.Write([]byte(cachedItem))
+		return
 	}
+	log.Println("GetItemByIDHandler: Cache miss, querying database")
+
+	var item model.Item
+	result := DB.First(&item, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Printf("GetItemByIDHandler: Item not found for ID: %s", id)
+			http.Error(w, "Item not found", http.StatusNotFound)
+		} else {
+			log.Printf("GetItemByIDHandler: Database error: %v", result.Error)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	log.Printf("GetItemByIDHandler: Item found: %+v", item)
+
+	itemJSON, err := json.Marshal(item)
+	if err == nil {
+		log.Println("GetItemByIDHandler: Caching item")
+		rdb.Set(ctx, cacheKey, itemJSON, 10*time.Minute)
+	}
+
+	log.Println("GetItemByIDHandler: Sending response")
+	w.Write(itemJSON)
+	log.Println("GetItemByIDHandler: Response sent")
 }
 
 func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -125,12 +116,11 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item.ID = id
-	if err := db.UpdateItem(item); err != nil {
+	if err := DB.Save(&item).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Invalidate the cache
 	cacheKey := "item:" + id.String()
 	rdb.Del(ctx, cacheKey)
 
@@ -139,11 +129,6 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -151,12 +136,11 @@ func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := db.DeleteItemByID(id); err != nil {
+	if err := DB.Delete(&model.Item{}, id).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Invalidate the cache
 	cacheKey := "item:" + id.String()
 	rdb.Del(ctx, cacheKey)
 
@@ -164,12 +148,7 @@ func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if err := db.DeleteAllItems(); err != nil {
+	if err := DB.Where("1 = 1").Delete(&model.Item{}).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

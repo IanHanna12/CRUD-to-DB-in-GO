@@ -13,22 +13,22 @@ import (
 
 var DB *gorm.DB // Database connection
 
-func InitDB() {
-	var err error
+func InitDB() *gorm.DB {
 	dsn := "root:abcd@tcp(127.0.0.1:3306)/test?allowNativePasswords=true"
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		log.Fatalf("Error opening database: %v", err)
 	}
 
-	err = DB.AutoMigrate(&model.Item{})
+	err = db.AutoMigrate(&model.Item{})
 	if err != nil {
 		log.Fatalf("Error migrating database: %v", err)
 	}
-}
 
+	return db
+}
 func CreateItem(item *model.Item) error {
 	if item.Blogname == "" || item.Author == "" {
 		return errors.New("blogname and author are required")
