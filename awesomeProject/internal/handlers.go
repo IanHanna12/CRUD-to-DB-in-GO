@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
+	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/permissions/user"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -90,6 +90,12 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("GetItemByIDHandler: Item found: %+v", item)
 
+	permissionView := user.GetView(item.Author.Username)
+	if !permissionView.CanView(false) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	itemJSON, err := json.Marshal(item)
 	if err == nil {
 		log.Println("GetItemByIDHandler: Caching item")
@@ -102,7 +108,7 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
+	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
@@ -129,7 +135,7 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	idStr := strings.TrimPrefix(r.URL.Path, "/items/")
+	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)

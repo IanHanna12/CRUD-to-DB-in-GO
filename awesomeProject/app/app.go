@@ -9,16 +9,16 @@ import (
 )
 
 type Item struct {
-	ID          uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
-	Blogname    string    `json:"blogname" gorm:"column:blogname"`
-	Author      string    `json:"author" gorm:"column:author"`
-	Content     string    `json:"content" gorm:"column:content"`
-	Permissions PermissionView
+	ID         uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
+	Blogname   string    `json:"blogname" gorm:"column:blogname"`
+	Author     string    `json:"author" gorm:"column:author"`
+	Content    string    `json:"content" gorm:"column:content"`
+	Permission string    `json:"permission" gorm:"column:permission"`
 }
 
 var DB *gorm.DB // Database connection
 
-func InitDB() {
+func initDB() {
 	var err error
 	dsn := "root:abcd@tcp(127.0.0.1:3306)/test?allowNativePasswords=true"
 	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{

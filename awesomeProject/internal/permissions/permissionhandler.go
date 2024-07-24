@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/permissions/user"
+	"net/http"
 )
 
 func CanView(u *user.User, isAdminContent bool) bool {
@@ -70,4 +71,64 @@ func AdminView(user *user.User) (string, error) {
 		return "This is admin-level content", nil
 	}
 	return "", errors.New("not authorized")
+}
+
+func CanViewHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		item := r.Context().Value("item").(model.Item)
+		permissionView := user.GetView(item.Author.Username)
+		if !permissionView.CanView(false) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func CanCreateHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := r.Context().Value("username").(string)
+		permissionView := user.GetView(username)
+		if !permissionView.CanCreate() {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func CanUpdateHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		item := r.Context().Value("item").(model.Item)
+		permissionView := user.GetView(item.Author.Username)
+		if !permissionView.CanUpdate() {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func CanDeleteHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		item := r.Context().Value("item").(model.Item)
+		permissionView := user.GetView(item.Author.Username)
+		if !permissionView.CanDelete() {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func CanViewAllHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username := r.Context().Value("username").(string)
+		permissionView := user.GetView(username)
+		if !permissionView.CanViewAll() {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
 }
