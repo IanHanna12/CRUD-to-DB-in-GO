@@ -30,8 +30,8 @@ func InitDB() *gorm.DB {
 	return db
 }
 func CreateItem(item *model.Item) error {
-	if item.Blogname == "" || item.Author == "" {
-		return errors.New("blogname and author are required")
+	if item.Blogname == "" || item.Author.Username == "" {
+		return errors.New("blogname and author username are required")
 	}
 
 	if item.ID == uuid.Nil {
@@ -66,8 +66,8 @@ func GetItemByID(id uuid.UUID) (model.Item, error) {
 }
 
 func UpdateItem(item model.Item) error {
-	if item.Blogname == "" || item.Author == "" {
-		return errors.New("blogname and author are required")
+	if item.Blogname == "" || item.Author.Username == "" {
+		return errors.New("blogname and author username are required")
 	}
 
 	var existingItem model.Item
@@ -87,7 +87,6 @@ func UpdateItem(item model.Item) error {
 	}
 	return nil
 }
-
 func DeleteItemByID(id uuid.UUID) error {
 	if err := DB.Where("id = ?", id).Delete(&model.Item{}).Error; err != nil {
 		log.Printf("Error deleting item by ID: %v", err)

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="styling.css">
+</head>
+<body>
+<div class="login-container">
+    <h2>Login</h2>
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <div class="checkbox-container">
+            <input type="checkbox" id="status" name="status">
+            <label for="status">Admin: <span id="statusDisplay">No</span></label>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+</div>
+<script src="login.js"></script>
+<script>
+    document.getElementById('status').addEventListener('change', function() {
+        const statusDisplay = document.getElementById('statusDisplay');
+        if (this.checked) {
+            statusDisplay.textContent = 'Yes';
+            this.value = 'admin';
+        } else {
+            statusDisplay.textContent = 'No';
+            this.value = 'user';
+        }
+    });
+</script>
+</body>
+</html>
