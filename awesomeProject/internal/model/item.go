@@ -12,7 +12,7 @@ type Item struct {
 	Content      string    `json:"content" gorm:"column:content"`
 	Identifier   string    `json:"identifier" gorm:"column:identifier"`
 	IdentifierID uuid.UUID `json:"identifier_id" gorm:"column:identifier_id"`
-	Permissions  user.PermissionView
+	Permissions  user.DBPermissionView
 }
 
 func (i Item) GetPermissions() user.PermissionView {

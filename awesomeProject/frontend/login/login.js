@@ -4,7 +4,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
 
-    fetch('/login', {
+    fetch('http://localhost:8080/login', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -15,7 +15,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
         .then(data => {
             if (data.success) {
                 // Redirect to the main page
-                window.location.href = 'mainpage.html';
+                window.location.href = 'awesomeProject/frontend/main_page/mainpage.html';
             } else {
                 alert('Login failed. Please check your credentials.');
             }

@@ -8,35 +8,35 @@ import (
 )
 
 func CanView(u *user.User, isAdminContent bool) bool {
-	if u.Permissions == nil {
+	if u.Permissions.Permissions == 0 {
 		u.Permissions = user.GetView(u.Identifier)
 	}
 	return u.Permissions.CanView(isAdminContent)
 }
 
 func CanCreate(u *user.User) bool {
-	if u.Permissions == nil {
+	if u.Permissions.Permissions == 0 {
 		u.Permissions = user.GetView(u.Identifier)
 	}
 	return u.Permissions.CanCreate()
 }
 
 func CanUpdate(u *user.User) bool {
-	if u.Permissions == nil {
+	if u.Permissions.Permissions == 0 {
 		u.Permissions = user.GetView(u.Identifier)
 	}
 	return u.Permissions.CanUpdate()
 }
 
 func CanDelete(u *user.User) bool {
-	if u.Permissions == nil {
+	if u.Permissions.Permissions == 0 {
 		u.Permissions = user.GetView(u.Identifier)
 	}
 	return u.Permissions.CanDelete()
 }
 
 func CanViewAll(u *user.User) bool {
-	if u.Permissions == nil {
+	if u.Permissions.Permissions == 0 {
 		u.Permissions = user.GetView(u.Identifier)
 	}
 	return u.Permissions.CanViewAll()
