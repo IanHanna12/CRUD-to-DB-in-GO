@@ -10,6 +10,7 @@
             --secondary-color: #2c3e50;
             --background-color: #ecf0f1;
         }
+
         body {
             font-family: 'Arial', sans-serif;
             margin: 0;
@@ -17,6 +18,7 @@
             background-color: var(--background-color);
             color: var(--secondary-color);
         }
+
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -25,6 +27,7 @@
             max-width: 1200px;
             margin: 0 auto;
         }
+
         header {
             grid-column: 1 / -1;
             background-color: var(--primary-color);
@@ -32,22 +35,26 @@
             padding: 20px;
             text-align: center;
         }
+
         #newItemForm {
             background-color: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         #itemList {
             display: grid;
             gap: 20px;
         }
+
         .item {
             background-color: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         input, textarea, button {
             width: 100%;
             padding: 10px;
@@ -55,6 +62,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+
         button {
             background-color: var(--primary-color);
             color: white;
@@ -62,14 +70,17 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
+
         button:hover {
             background-color: #2980b9;
         }
+
         .checkbox-container {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
         }
+
         .checkbox-container input[type="checkbox"] {
             width: auto;
             margin-right: 10px;
@@ -86,10 +97,6 @@
         <input type="text" id="blogname" placeholder="Blog Name">
         <input type="text" id="author" placeholder="Author">
         <textarea id="content" placeholder="Content"></textarea>
-        <div class="checkbox-container">
-            <input type="checkbox" id="featured" name="featured">
-            <label for="featured">Featured Post</label>
-        </div>
         <button onclick="addItem()">Add Post</button>
     </aside>
     <main id="itemList"></main>
@@ -103,14 +110,14 @@
                 itemList.innerHTML = '';
                 items.forEach(item => {
                     itemList.innerHTML += `
-                            <div class="item">
-                                <h3>${item.blogname}</h3>
-                                <p>Author: ${item.author}</p>
-                                <p>${item.content}</p>
-                                <p>Featured: ${item.featured ? 'Yes' : 'No'}</p>
-                                <button onclick="deleteItem('${item.id}')">Delete</button>
-                            </div>
-                        `;
+                        <div class="item">
+                            <h3>${item.blogname}</h3>
+                            <p>Author: ${item.author}</p>
+                            <p>${item.content}</p>
+                            <p>Featured: ${item.featured ? 'Yes' : 'No'}</p>
+                            <button onclick="deleteItem('${item.id}')">Delete</button>
+                        </div>
+                    `;
                 });
             });
     }
@@ -119,26 +126,25 @@
         const blogname = document.getElementById('blogname').value;
         const author = document.getElementById('author').value;
         const content = document.getElementById('content').value;
-        const featured = document.getElementById('featured').checked;
+        const featured = document.getElementById('status').checked;
 
         fetch('/items', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ blogname, author, content, featured }),
+            body: JSON.stringify({blogname, author, content, featured}),
         })
             .then(() => {
                 fetchItems();
                 document.getElementById('blogname').value = '';
                 document.getElementById('author').value = '';
                 document.getElementById('content').value = '';
-                document.getElementById('featured').checked = false;
             });
     }
 
     function deleteItem(id) {
-        fetch(`/items/${id}`, { method: 'DELETE' })
+        fetch(`/items/${id}`, {method: 'DELETE'})
             .then(() => fetchItems());
     }
 

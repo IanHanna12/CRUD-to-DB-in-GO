@@ -14,8 +14,8 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Redirect to the main page or dashboard
-                window.location.href = '/dashboard';
+                // Redirect to the main page
+                window.location.href = 'mainpage.html';
             } else {
                 alert('Login failed. Please check your credentials.');
             }
