@@ -1,134 +1,42 @@
-package permissions
+package user
 
 import (
-	"errors"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/permissions/user"
-	"net/http"
+	"github.com/google/uuid"
 )
 
-func CanView(u *user.User, isAdminContent bool) bool {
-	if u.Permissions.Permissions == 0 {
-		u.Permissions = user.GetView(u.Identifier)
-	}
-	return u.Permissions.CanView(isAdminContent)
+type User struct {
+	ID           uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
+	Username     string    `json:"username" gorm:"column:username"`
+	Identifier   string    `json:"identifier" gorm:"column:identifier"`
+	IdentifierID uuid.UUID `json:"identifier_id" gorm:"column:identifier_id"`
+	Role         string    `json:"role" gorm:"column:role"`
 }
 
-func CanCreate(u *user.User) bool {
-	if u.Permissions.Permissions == 0 {
-		u.Permissions = user.GetView(u.Identifier)
-	}
-	return u.Permissions.CanCreate()
+func (u *User) CanView(isAdminContent bool) bool {
+	return u.Role == "admin" || !isAdminContent
 }
 
-func CanUpdate(u *user.User) bool {
-	if u.Permissions.Permissions == 0 {
-		u.Permissions = user.GetView(u.Identifier)
-	}
-	return u.Permissions.CanUpdate()
+func (u *User) CanCreate() bool {
+	return u.Role == "admin" || u.Role == "user"
 }
 
-func CanDelete(u *user.User) bool {
-	if u.Permissions.Permissions == 0 {
-		u.Permissions = user.GetView(u.Identifier)
-	}
-	return u.Permissions.CanDelete()
+func (u *User) CanUpdate() bool {
+	return u.Role == "admin" || u.Role == "user"
 }
 
-func CanViewAll(u *user.User) bool {
-	if u.Permissions.Permissions == 0 {
-		u.Permissions = user.GetView(u.Identifier)
-	}
-	return u.Permissions.CanViewAll()
+func (u *User) CanDelete() bool {
+	return u.Role == "admin"
 }
 
-func FilterItemsForUser(items []model.Item, user *user.User) []model.Item {
-	var filteredItems []model.Item
-	for _, item := range items {
-		if CanView(user, false) {
-			filteredItems = append(filteredItems, item)
-		}
+func GetView(identifier string) *User {
+	role := "guest"
+	if identifier == "admin" {
+		role = "admin"
+	} else if identifier == "user" {
+		role = "user"
 	}
-	return filteredItems
-}
-
-func GetAdminOnlyContent(user *user.User) (string, error) {
-	if CanView(user, true) {
-		return "This is admin-only content", nil
-	}
-	return "", errors.New("not authorized")
-}
-
-func UserView(user *user.User) (string, error) {
-	if CanView(user, false) {
-		return "This is user-level content", nil
-	}
-	return "", errors.New("not authorized")
-}
-
-func AdminView(user *user.User) (string, error) {
-	if CanView(user, true) {
-		return "This is admin-level content", nil
-	}
-	return "", errors.New("not authorized")
-}
-
-func CanViewHandler(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		item := r.Context().Value("item").(model.Item)
-		permissionView := user.GetView(item.Author.Username)
-		if !permissionView.CanView(false) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
-func CanCreateHandler(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		username := r.Context().Value("username").(string)
-		permissionView := user.GetView(username)
-		if !permissionView.CanCreate() {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
-func CanUpdateHandler(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		item := r.Context().Value("item").(model.Item)
-		permissionView := user.GetView(item.Author.Username)
-		if !permissionView.CanUpdate() {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
-func CanDeleteHandler(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		item := r.Context().Value("item").(model.Item)
-		permissionView := user.GetView(item.Author.Username)
-		if !permissionView.CanDelete() {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
-func CanViewAllHandler(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		username := r.Context().Value("username").(string)
-		permissionView := user.GetView(username)
-		if !permissionView.CanViewAll() {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
+	return &User{
+		Identifier: identifier,
+		Role:       role,
 	}
 }

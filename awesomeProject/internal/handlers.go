@@ -5,15 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/permissions/user"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 	"log"
+	"mime"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 )
+
+var isAdminMode bool
 
 var ctx = context.Background()
 var rdb = redis.NewClient(&redis.Options{
@@ -23,15 +27,34 @@ var rdb = redis.NewClient(&redis.Options{
 
 var DB *gorm.DB
 
+type ItemResponse struct {
+	ID       uuid.UUID `json:"id"`
+	Blogname string    `json:"blogname"`
+	Author   string    `json:"author"`
+	Content  string    `json:"content"`
+}
+
 func InitHandlers(db *gorm.DB) {
 	DB = db
 }
 
 func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
-	var item model.Item
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+	var itemRequest struct {
+		Blogname string `json:"blogname"`
+		Author   string `json:"author"`
+		Content  string `json:"content"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&itemRequest); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	item := model.Item{
+		ID:       uuid.New(),
+		Blogname: itemRequest.Blogname,
+		Author:   itemRequest.Author,
+		Content:  itemRequest.Content,
 	}
 
 	if err := DB.Create(&item).Error; err != nil {
@@ -39,19 +62,49 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	response := ItemResponse{
+		ID:       item.ID,
+		Blogname: item.Blogname,
+		Author:   item.Author,
+		Content:  item.Content,
+	}
+
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
+	json.NewEncoder(w).Encode(response)
 }
 
 func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("GetAllItemsHandler: Started")
+
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
+		log.Printf("GetAllItemsHandler: Database error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("GetAllItemsHandler: Found %d items", len(items))
+
+	var responses []ItemResponse
+	for _, item := range items {
+		responses = append(responses, ItemResponse{
+			ID:       item.ID,
+			Blogname: item.Blogname,
+			Author:   item.Author,
+			Content:  item.Content,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(items)
+
+	if err := json.NewEncoder(w).Encode(responses); err != nil {
+		log.Printf("GetAllItemsHandler: JSON encoding error: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("GetAllItemsHandler: Completed successfully")
 }
 
 func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +120,6 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("GetItemByIDHandler: Parsed UUID: %s", id)
 
 	cacheKey := "item:" + id.String()
-
 	cachedItem, err := rdb.Get(ctx, cacheKey).Result()
 	if err == nil {
 		log.Println("GetItemByIDHandler: Cache hit, returning cached item")
@@ -90,20 +142,21 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("GetItemByIDHandler: Item found: %+v", item)
 
-	permissionView := user.GetView(item.Author.Username)
-	if !permissionView.CanView(false) {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
+	response := ItemResponse{
+		ID:       item.ID,
+		Blogname: item.Blogname,
+		Author:   item.Author,
+		Content:  item.Content,
 	}
 
-	itemJSON, err := json.Marshal(item)
+	responseJSON, err := json.Marshal(response)
 	if err == nil {
 		log.Println("GetItemByIDHandler: Caching item")
-		rdb.Set(ctx, cacheKey, itemJSON, 10*time.Minute)
+		rdb.Set(ctx, cacheKey, responseJSON, 10*time.Minute)
 	}
 
 	log.Println("GetItemByIDHandler: Sending response")
-	w.Write(itemJSON)
+	w.Write(responseJSON)
 	log.Println("GetItemByIDHandler: Response sent")
 }
 
@@ -115,13 +168,24 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var item model.Item
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+	var itemRequest struct {
+		Blogname string `json:"blogname"`
+		Author   string `json:"author"`
+		Content  string `json:"content"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&itemRequest); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	item.ID = id
+	item := model.Item{
+		ID:       id,
+		Blogname: itemRequest.Blogname,
+		Author:   itemRequest.Author,
+		Content:  itemRequest.Content,
+	}
+
 	if err := DB.Save(&item).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -130,8 +194,15 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 	cacheKey := "item:" + id.String()
 	rdb.Del(ctx, cacheKey)
 
+	response := ItemResponse{
+		ID:       item.ID,
+		Blogname: item.Blogname,
+		Author:   item.Author,
+		Content:  item.Content,
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(item)
+	json.NewEncoder(w).Encode(response)
 }
 
 func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
@@ -162,19 +233,65 @@ func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Vary", "Origin")
+
 	var loginRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		IsAdmin  bool   `json:"isAdmin"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid request body",
+		})
 		return
 	}
+
 	if loginRequest.Username != "" && loginRequest.Password != "" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{"success": true})
+		isAdminMode = loginRequest.IsAdmin
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"isAdmin": isAdminMode,
+			"message": "Login successful",
+		})
 	} else {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid credentials",
+		})
 	}
+}
+
+func MainPageHandler(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, ".js") {
+		w.Header().Set("Content-Type", "application/javascript")
+		http.ServeFile(w, r, "frontend/static/main_page/mainPage.js")
+	} else {
+		w.Header().Set("Content-Type", "text/html")
+		http.ServeFile(w, r, "frontend/main_page/mainpage.html")
+	}
+}
+
+func ServeWithProperMIME(w http.ResponseWriter, r *http.Request) {
+	path := filepath.Join("./frontend", r.URL.Path)
+	ext := filepath.Ext(path)
+
+	switch ext {
+	case ".js":
+		w.Header().Set("Content-Type", "application/javascript")
+	case ".css":
+		w.Header().Set("Content-Type", "text/css")
+	case ".html":
+		w.Header().Set("Content-Type", "text/html")
+	default:
+		w.Header().Set("Content-Type", mime.TypeByExtension(ext))
+	}
+
+	http.ServeFile(w, r, path)
 }

@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB // Database connection
+var DB *gorm.DB
 
 func InitDB() *gorm.DB {
 	dsn := "root:abcd@tcp(127.0.0.1:3306)/test?allowNativePasswords=true"
@@ -29,13 +29,14 @@ func InitDB() *gorm.DB {
 
 	return db
 }
+
 func CreateItem(item *model.Item) error {
-	if item.Blogname == "" || item.Author.Username == "" {
-		return errors.New("blogname and author username are required")
+	if item.Blogname == "" || item.Author == "" {
+		return errors.New("blogname and author are required")
 	}
 
 	if item.ID == uuid.Nil {
-		item.ID = uuid.New() // Generate a new UUID if the ID is empty
+		item.ID = uuid.New()
 	}
 	if err := DB.Create(item).Error; err != nil {
 		return err
@@ -66,8 +67,8 @@ func GetItemByID(id uuid.UUID) (model.Item, error) {
 }
 
 func UpdateItem(item model.Item) error {
-	if item.Blogname == "" || item.Author.Username == "" {
-		return errors.New("blogname and author username are required")
+	if item.Blogname == "" || item.Author == "" {
+		return errors.New("blogname and author are required")
 	}
 
 	var existingItem model.Item
@@ -87,6 +88,7 @@ func UpdateItem(item model.Item) error {
 	}
 	return nil
 }
+
 func DeleteItemByID(id uuid.UUID) error {
 	if err := DB.Where("id = ?", id).Delete(&model.Item{}).Error; err != nil {
 		log.Printf("Error deleting item by ID: %v", err)

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog CRUD App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #ecf0f1;
+            --text-color: #34495e;
+            --card-background: #ffffff;
+            --accent-color: #e74c3c;
+            --success-color: #2ecc71;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.8;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+            font-weight: 600;
+            padding: 20px 0;
+        }
+        form, .view-controls {
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            border-top: 4px solid var(--primary-color);
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        button:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .blog-post {
+            background-color: var(--card-background);
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+            border-left: 4px solid var(--accent-color);
+        }
+        .blog-post:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .blog-post h3 {
+            margin-top: 0;
+            color: var(--secondary-color);
+            font-weight: 600;
+            font-size: 1.5em;
+        }
+        .author {
+            font-style: italic;
+            color: #777;
+        }
+        .content {
+            margin-top: 15px;
+        }
+        .actions {
+            margin-top: 20px;
+        }
+        .edit-btn, .delete-btn {
+            padding: 8px 15px;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        .edit-btn {
+            background-color: var(--accent-color);
+        }
+        .delete-btn {
+            background-color: var(--accent-color);
+        }
+        #delete-all-btn {
+            background-color: var(--accent-color);
+            margin-top: 30px;
+        }
+        .view-controls {
+            margin-bottom: 20px;
+        }
+        #post-id-input {
+            width: 200px;
+            margin-right: 10px;
+        }
+        #view-by-id-btn, #view-all-btn {
+            background-color: var(--secondary-color);
+        }
+        #edit-btn {
+            background-color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Blog CRUD App</h1>
+
+    <div class="view-controls">
+        <input type="text" id="post-id-input" placeholder="Enter Post ID">
+        <button id="view-by-id-btn">View Post by ID</button>
+        <button id="view-all-btn">View All Posts</button>
+    </div>
+
+    <form id="post-form">
+        <input type="hidden" id="item-id">
+        <input type="text" id="blogname" placeholder="Blog Title" required>
+        <input type="text" id="author" placeholder="Author" required>
+        <textarea id="content" placeholder="Content" required></textarea>
+        <button type="submit" id="submit-btn">Add Post</button>
+        <button type="button" id="edit-btn" style="display: none;">Edit Post</button>
+    </form>
+
+    <div id="posts-container"></div>
+
+    <button id="delete-all-btn">Delete All Posts</button>
+</div>
+
+<script src="mainPage.js"></script>
+</body>
+</html>

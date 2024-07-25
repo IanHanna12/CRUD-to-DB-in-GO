@@ -16,6 +16,7 @@ func main() {
 
 	router := mux.NewRouter()
 
+	router.HandleFunc("/", handlers.MainPageHandler)
 	router.HandleFunc("/items", handlers.CreateItemHandler).Methods("POST")
 	router.HandleFunc("/items", handlers.GetAllItemsHandler).Methods("GET")
 	router.HandleFunc("/items/{id}", handlers.GetItemByIDHandler).Methods("GET")
@@ -24,9 +25,11 @@ func main() {
 	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 
-	// CORS handling  --> prevent 404 error
+	fs := http.FileServer(http.Dir("./frontend"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
+
 	_cors := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:63342"},
+		AllowedOrigins:   []string{"http://localhost:63342", "http://localhost:8080"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
