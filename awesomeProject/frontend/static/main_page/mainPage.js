@@ -1,5 +1,3 @@
-// mainPage.js
-
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('post-form');
     const postsContainer = document.getElementById('posts-container');
@@ -10,99 +8,106 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submit-btn');
     const editBtn = document.getElementById('edit-btn');
 
-    let posts = JSON.parse(localStorage.getItem('posts')) || [];
     let currentEditId = null;
 
-    function renderPosts(postsToRender = posts) {
+    function renderPosts(posts) {
         postsContainer.innerHTML = '';
-        postsToRender.forEach(post => {
-            const postElement = document.createElement('div');
-            postElement.classList.add('blog-post');
-            postElement.innerHTML = `
-                <h3>${post.title}</h3>
-                <p class="author">By: ${post.author}</p>
-                <p class="content">${post.content}</p>
-                <div class="actions">
-                    <button class="edit-btn" data-id="${post.id}">Edit</button>
-                    <button class="delete-btn" data-id="${post.id}">Delete</button>
-                </div>
-            `;
-            postsContainer.appendChild(postElement);
-        });
+        if (Array.isArray(posts) && posts.length > 0) {
+            posts.forEach(post => {
+                const postElement = document.createElement('div');
+                postElement.classList.add('blog-post');
+                postElement.innerHTML = `
+                    <h3>${post.blogname}</h3>
+                    <p class="author">By: ${post.author}</p>
+                    <p class="content">${post.content}</p>
+                    <div class="actions">
+                        <button class="edit-btn" data-id="${post.id}">Edit</button>
+                        <button class="delete-btn" data-id="${post.id}">Delete</button>
+                    </div>
+                `;
+                postsContainer.appendChild(postElement);
+            });
+        } else {
+            postsContainer.innerHTML = '<p>No posts to display</p>';
+        }
     }
 
-    function savePosts() {
-        localStorage.setItem('posts', JSON.stringify(posts));
+    function fetchPosts() {
+        fetch('http://localhost:8080/items')
+            .then(response => response.json())
+            .then(posts => renderPosts(posts))
+            .catch(error => {
+                console.error('Error:', error);
+                renderPosts([]);
+            });
     }
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        const title = document.getElementById('blogname').value;
-        const author = document.getElementById('author').value;
-        const content = document.getElementById('content').value;
+        const post = {
+            blogname: document.getElementById('blogname').value,
+            author: document.getElementById('author').value,
+            content: document.getElementById('content').value
+        };
 
-        if (currentEditId) {
-            const index = posts.findIndex(post => post.id === currentEditId);
-            posts[index] = { ...posts[index], title, author, content };
-            currentEditId = null;
-            submitBtn.textContent = 'Add Post';
-            editBtn.style.display = 'none';
-        } else {
-            const newPost = {
-                id: Date.now().toString(),
-                title,
-                author,
-                content
-            };
-            posts.push(newPost);
-        }
+        const url = currentEditId ? `http://localhost:8080/items/${currentEditId}` : 'http://localhost:8080/items';
+        const method = currentEditId ? 'PUT' : 'POST';
 
-        savePosts();
-        renderPosts();
-        form.reset();
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(post)
+        })
+            .then(() => {
+                currentEditId = null;
+                submitBtn.textContent = 'Add Post';
+                editBtn.style.display = 'none';
+                fetchPosts();
+                form.reset();
+            })
+            .catch(error => console.error('Error:', error));
     });
 
     postsContainer.addEventListener('click', function(e) {
         if (e.target.classList.contains('delete-btn')) {
             const id = e.target.getAttribute('data-id');
-            posts = posts.filter(post => post.id !== id);
-            savePosts();
-            renderPosts();
+            fetch(`http://localhost:8080/items/${id}`, { method: 'DELETE' })
+                .then(() => fetchPosts())
+                .catch(error => console.error('Error:', error));
         } else if (e.target.classList.contains('edit-btn')) {
             const id = e.target.getAttribute('data-id');
-            const postToEdit = posts.find(post => post.id === id);
-            document.getElementById('blogname').value = postToEdit.title;
-            document.getElementById('author').value = postToEdit.author;
-            document.getElementById('content').value = postToEdit.content;
-            currentEditId = id;
-            submitBtn.textContent = 'Update Post';
-            editBtn.style.display = 'inline-block';
+            fetch(`http://localhost:8080/items/${id}`)
+                .then(response => response.json())
+                .then(post => {
+                    document.getElementById('blogname').value = post.blogname;
+                    document.getElementById('author').value = post.author;
+                    document.getElementById('content').value = post.content;
+                    currentEditId = post.id;
+                    submitBtn.textContent = 'Update Post';
+                    editBtn.style.display = 'inline-block';
+                })
+                .catch(error => console.error('Error:', error));
         }
     });
 
     deleteAllBtn.addEventListener('click', function() {
-        posts = [];
-        savePosts();
-        renderPosts();
+        fetch('http://localhost:8080/items', { method: 'DELETE' })
+            .then(() => fetchPosts())
+            .catch(error => console.error('Error:', error));
     });
 
     viewByIdBtn.addEventListener('click', function() {
         const id = postIdInput.value;
-        // find the post with the given id
-        const post = posts.find(post => post.id === id);
-
-
-        // render the post if found
-        if (post) {
-            renderPosts([post]);
-        } else {
-            alert('Post not found');
-        }
+        fetch(`http://localhost:8080/items/${id}`)
+            .then(response => response.json())
+            .then(post => renderPosts([post]))
+            .catch(() => {
+                console.error('Post not found');
+                renderPosts([]);
+            });
     });
 
-    viewAllBtn.addEventListener('click', function() {
-        renderPosts();
-    });
+    viewAllBtn.addEventListener('click', fetchPosts);
 
     editBtn.addEventListener('click', function() {
         currentEditId = null;
@@ -111,5 +116,5 @@ document.addEventListener('DOMContentLoaded', function() {
         form.reset();
     });
 
-    renderPosts();
+    fetchPosts();
 });
