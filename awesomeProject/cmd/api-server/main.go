@@ -16,7 +16,14 @@ func main() {
 
 	router := mux.NewRouter()
 
+	// Serve static files
+	fs := http.FileServer(http.Dir("./frontend/static"))
+	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
+
+	// Main page handler
 	router.HandleFunc("/", handlers.MainPageHandler)
+
+	// API routes
 	router.HandleFunc("/items", handlers.CreateItemHandler).Methods("POST")
 	router.HandleFunc("/items", handlers.GetAllItemsHandler).Methods("GET")
 	router.HandleFunc("/items/{id}", handlers.GetItemByIDHandler).Methods("GET")
@@ -25,11 +32,8 @@ func main() {
 	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 
-	fs := http.FileServer(http.Dir("./frontend"))
-	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
-
 	_cors := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:63342", "http://localhost:8080"},
+		AllowedOrigins:   []string{"http://localhost:8080"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,

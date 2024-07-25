@@ -1,55 +1,64 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('post-form');
+    const loginForm = document.getElementById('login-form');
     const postsContainer = document.getElementById('posts-container');
-    const apiUrl = 'http://localhost:8080/items';
-    let currentEditId = null;
+    const postForm = document.getElementById('post-form');
+    const deleteAllBtn = document.getElementById('delete-all-btn');
 
-    function renderPosts(posts) {
-        postsContainer.innerHTML = posts.map(post => `
-            <div class="blog-post">
-                <h3>${post.blogname}</h3>
-                <p>By: ${post.author}</p>
-                <p>${post.content}</p>
-                <button onclick="editPost(${post.id})">Edit</button>
-                <button onclick="deletePost(${post.id})">Delete</button>
-            </div>
-        `).join('') || '<p>No posts available</p>';
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            fetch('http://localhost:8080/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            })
+                .then(response => response.json())
+                .then(response => {
+                    if (response.success) {
+                        localStorage.setItem('isAdmin', response.isAdmin);
+                        window.location.href = '/static/main_page/mainpage.html';
+                    } else {
+                        alert('Login failed. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+        });
     }
 
-    function fetchPosts() {
-        fetch(apiUrl).then(res => res.json()).then(renderPosts);
+    if (postsContainer) {
+        loadItems();
     }
-
-    form.onsubmit = function(e) {
-        e.preventDefault();
-        const post = {
-            blogname: form.blogname.value,
-            author: form.author.value,
-            content: form.content.value
-        };
-        fetch(currentEditId ? `${apiUrl}/${currentEditId}` : apiUrl, {
-            method: currentEditId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(post)
-        }).then(() => {
-            currentEditId = null;
-            form.reset();
-            fetchPosts();
-        });
-    };
-
-    window.editPost = function(id) {
-        fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
-            form.blogname.value = post.blogname;
-            form.author.value = post.author;
-            form.content.value = post.content;
-            currentEditId = id;
-        });
-    };
-
-    window.deletePost = function(id) {
-        fetch(`${apiUrl}/${id}`, { method: 'DELETE' }).then(fetchPosts);
-    };
-
-    fetchPosts();
 });
+
+function loadItems() {
+    fetch('http://localhost:8080/items')
+        .then(response => response.json())
+        .then(items => {
+            const itemList = document.getElementById('posts-container');
+            if (itemList) {
+                const isAdmin = localStorage.getItem('isAdmin') === 'true';
+                itemList.innerHTML = items.map(item => `
+                <div class="blog-post">
+                    <h3>${item.blogname}</h3>
+                    <p><strong>Author:</strong> ${item.author}</p>
+                    <p>${item.content}</p>
+                    ${isAdmin ? `<button onclick="deleteItem('${item.id}')">Delete</button>` : ''}
+                </div>
+            `).join('');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        });
+}

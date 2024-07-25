@@ -274,7 +274,7 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "frontend/static/main_page/mainPage.js")
 	} else {
 		w.Header().Set("Content-Type", "text/html")
-		http.ServeFile(w, r, "frontend/main_page/mainpage.html")
+		http.ServeFile(w, r, "awesomeProject/frontend/static/main_page/mainpage.html")
 	}
 }
 
