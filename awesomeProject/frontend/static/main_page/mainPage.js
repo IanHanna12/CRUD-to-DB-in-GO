@@ -1,64 +1,133 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const loginForm = document.getElementById('login-form');
-    const postsContainer = document.getElementById('posts-container');
-    const postForm = document.getElementById('post-form');
-    const deleteAllBtn = document.getElementById('delete-all-btn');
-
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
+    const form = document.getElementById('post-form');
+    const postsContainer = document.getElementById('posts-container');
+    const apiUrl = 'http://localhost:8080/items';
+    let currentEditId = null;
 
-    if (loginForm) {
-        loginForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+    const createBtn = document.getElementById('create-btn');
+    const readBtn = document.getElementById('read-btn');
+    const updateBtn = document.getElementById('update-btn');
+    const deleteBtn = document.getElementById('delete-btn');
 
-            fetch('http://localhost:8080/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ username, password }),
-            })
-                .then(response => response.json())
-                .then(response => {
-                    if (response.success) {
-                        localStorage.setItem('isAdmin', response.isAdmin);
-                        window.location.href = '/static/main_page/mainpage.html';
-                    } else {
-                        alert('Login failed. Please try again.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred. Please try again.');
+    if (isAdmin) {
+        enableAdminFunctionality();
+    } else {
+        disableNonAdminFunctionality();
+    }
+
+    function disableNonAdminFunctionality() {
+        [createBtn, updateBtn, deleteBtn].forEach(btn => {
+            if (btn) btn.style.display = 'none';
+        });
+        if (form) form.style.display = 'none';
+        if (readBtn) readBtn.addEventListener('click', fetchPosts);
+    }
+
+    function enableAdminFunctionality() {
+        [createBtn, readBtn, updateBtn, deleteBtn].forEach(btn => {
+            if (btn) btn.addEventListener('click', getButtonFunction(btn.id));
+        });
+        if (form) form.style.display = 'block';
+    }
+
+    function getButtonFunction(buttonId) {
+        const functions = {
+            'create-btn': createItem,
+            'read-btn': fetchPosts,
+            'update-btn': updateItem,
+            'delete-btn': deleteItem
+        };
+        return functions[buttonId];
+    }
+
+    function createItem() {
+        currentEditId = null;
+        form.reset();
+        form.style.display = 'block';
+    }
+
+    function updateItem() {
+        const id = prompt('Enter the ID of the post to update:');
+        if (id) {
+            fetch(`${apiUrl}/${id}`)
+                .then(res => res.json())
+                .then(post => {
+                    form.style.display = 'block';
+                    form.blogname.value = post.blogname;
+                    form.author.value = post.author;
+                    form.content.value = post.content;
+                    currentEditId = id;
                 });
-        });
+        }
     }
 
-    if (postsContainer) {
-        loadItems();
+    function deleteItem() {
+        const id = prompt('Enter the ID of the post to delete:');
+        if (id) {
+            fetch(`${apiUrl}/${id}`, { method: 'DELETE' }).then(fetchPosts);
+        }
     }
+
+    function renderPosts(posts) {
+        postsContainer.innerHTML = posts.map(post => `
+            <div class="blog-post">
+                <h3>${post.blogname}</h3>
+                <p>By: ${post.author}</p>
+                <p>${post.content}</p>
+                ${isAdmin ? `
+                    <button onclick="editPost(${post.id})">Edit</button>
+                    <button onclick="deletePost(${post.id})">Delete</button>
+                ` : ''}
+            </div>
+        `).join('') || '<p>No posts available</p>';
+    }
+
+    function fetchPosts() {
+        fetch(apiUrl).then(res => res.json()).then(renderPosts);
+    }
+
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const post = {
+                blogname: form.blogname.value,
+                author: form.author.value,
+                content: form.content.value
+            };
+            fetch(currentEditId ? `${apiUrl}/${currentEditId}` : apiUrl, {
+                method: currentEditId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(post)
+            }).then(() => {
+                currentEditId = null;
+                form.reset();
+                fetchPosts();
+            });
+        };
+    }
+
+    window.editPost = function(id) {
+        if (isAdmin) {
+            fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
+                form.style.display = 'block';
+                form.blogname.value = post.blogname;
+                form.author.value = post.author;
+                form.content.value = post.content;
+                currentEditId = id;
+            });
+        } else {
+            alert('You do not have permission to edit posts.');
+        }
+    };
+
+    window.deletePost = function(id) {
+        if (isAdmin) {
+            fetch(`${apiUrl}/${id}`, { method: 'DELETE' }).then(fetchPosts);
+        } else {
+            alert('You do not have permission to delete posts.');
+        }
+    };
+
+    fetchPosts();
 });
-
-function loadItems() {
-    fetch('http://localhost:8080/items')
-        .then(response => response.json())
-        .then(items => {
-            const itemList = document.getElementById('posts-container');
-            if (itemList) {
-                const isAdmin = localStorage.getItem('isAdmin') === 'true';
-                itemList.innerHTML = items.map(item => `
-                <div class="blog-post">
-                    <h3>${item.blogname}</h3>
-                    <p><strong>Author:</strong> ${item.author}</p>
-                    <p>${item.content}</p>
-                    ${isAdmin ? `<button onclick="deleteItem('${item.id}')">Delete</button>` : ''}
-                </div>
-            `).join('');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred. Please try again.');
-        });
-}

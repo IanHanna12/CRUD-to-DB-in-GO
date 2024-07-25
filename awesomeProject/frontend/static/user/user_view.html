@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blog CRUD App</title>
+    <title>User View - Blog CRUD App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -98,20 +98,11 @@
         .actions {
             margin-top: 20px;
         }
-        .edit-btn, .delete-btn {
+        .edit-btn {
             padding: 8px 15px;
             margin-right: 10px;
             font-size: 14px;
-        }
-        .edit-btn {
             background-color: var(--accent-color);
-        }
-        .delete-btn {
-            background-color: var(--accent-color);
-        }
-        #delete-all-btn {
-            background-color: var(--accent-color);
-            margin-top: 30px;
         }
         .view-controls {
             margin-bottom: 20px;
@@ -130,7 +121,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>Blog CRUD App</h1>
+    <h1>User View - Blog CRUD App</h1>
 
     <div class="view-controls">
         <input type="text" id="post-id-input" placeholder="Enter Post ID">
@@ -148,10 +139,8 @@
     </form>
 
     <div id="posts-container"></div>
-
-    <button id="delete-all-btn">Delete All Posts</button>
 </div>
 
-<script src="mainPage.js"></script>
+<script src="user_view.js"></script>
 </body>
 </html>
