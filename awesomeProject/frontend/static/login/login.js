@@ -12,9 +12,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Redirect to appropriate view
             if (isAdmin) {
-                window.location.href = 'http://localhost:8080/static/admin/admin.html';
+                window.location.href = 'http://localhost:8080/static/admin/admin_view.html';
             } else {
-                window.location.href = 'http://localhost:8080/static/user/user.html';
+                window.location.href = 'http://localhost:8080/static/user/user_view.html';
             }
         });
     }
