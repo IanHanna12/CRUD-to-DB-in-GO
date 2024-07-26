@@ -6,6 +6,7 @@
     <title>User View - Blog CRUD App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        /* CSS styles from admin_view.html */
         :root {
             --primary-color: #3498db;
             --secondary-color: #2c3e50;
@@ -98,10 +99,15 @@
         .actions {
             margin-top: 20px;
         }
-        .edit-btn {
+        .edit-btn, .delete-btn {
             padding: 8px 15px;
             margin-right: 10px;
             font-size: 14px;
+        }
+        .edit-btn {
+            background-color: var(--accent-color);
+        }
+        .delete-btn {
             background-color: var(--accent-color);
         }
         .view-controls {

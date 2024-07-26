@@ -25,15 +25,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h3>${post.blogname}</h3>
                 <p class="author">By: ${post.author}</p>
                 <p class="content">${post.content}</p>
-                <button onclick="editPost(${post.id})" class="edit-btn">Edit</button>
-                <button onclick="deletePost(${post.id})" class="delete-btn">Delete</button>
+                <button onclick="editPost('${post.id}')" class="edit-btn">Edit</button>
+                <button onclick="deletePost('${post.id}')" class="delete-btn">Delete</button>
             </div>
         `;
     }
 
     function fetchPosts() {
-        fetch(apiUrl).then(res => res.json()).then(renderPosts);
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (Array.isArray(data)) {
+                    renderPosts(data);
+                } else {
+                    console.error('Invalid response data:', data);
+                    renderPosts([]);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching posts:', error);
+                renderPosts([]);
+            });
     }
+
 
     function renderPosts(posts) {
         postsContainer.innerHTML = posts.map(renderPost).join('') || '<p>No posts available</p>';

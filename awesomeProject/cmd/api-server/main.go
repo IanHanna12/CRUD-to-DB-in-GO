@@ -20,6 +20,8 @@ func main() {
 	fs := http.FileServer(http.Dir("./frontend/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 
+	router.PathPrefix("/static/").HandlerFunc(handlers.ServeWithProperMIME)
+
 	// Main page handler
 	router.HandleFunc("/", handlers.MainPageHandler)
 
@@ -32,14 +34,13 @@ func main() {
 	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 
-	_cors := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:8080"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		AllowCredentials: true,
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:63832"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
 	})
 
-	handler := _cors.Handler(router)
+	handler := corsHandler.Handler(router)
 
 	serverConf := &http.Server{
 		Handler:      handler,

@@ -10,9 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
 	"log"
-	"mime"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -272,26 +270,24 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, ".js") {
 		w.Header().Set("Content-Type", "application/javascript")
 		http.ServeFile(w, r, "frontend/static/main_page/mainPage.js")
+	} else if strings.HasSuffix(r.URL.Path, "user_view.html") {
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		http.ServeFile(w, r, "frontend/static/user/user_view.html")
 	} else {
-		w.Header().Set("Content-Type", "text/html")
-		http.ServeFile(w, r, "awesomeProject/frontend/static/main_page/mainpage.html")
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		http.ServeFile(w, r, "awesomeProject/frontend/static/main_page/mainPage.html")
 	}
 }
 
 func ServeWithProperMIME(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join("./frontend", r.URL.Path)
-	ext := filepath.Ext(path)
-
-	switch ext {
-	case ".js":
+	path := r.URL.Path
+	if strings.HasSuffix(path, ".html") {
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+	} else if strings.HasSuffix(path, ".js") {
 		w.Header().Set("Content-Type", "application/javascript")
-	case ".css":
+	} else if strings.HasSuffix(path, ".css") {
 		w.Header().Set("Content-Type", "text/css")
-	case ".html":
-		w.Header().Set("Content-Type", "text/html")
-	default:
-		w.Header().Set("Content-Type", mime.TypeByExtension(ext))
 	}
 
-	http.ServeFile(w, r, path)
+	http.ServeFile(w, r, "frontend/static"+path)
 }

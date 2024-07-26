@@ -13,10 +13,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isAdmin) {
         enableAdminFunctionality();
     } else {
-        disableNonAdminFunctionality();
+        disableAdminFunctionality();
     }
 
-    function disableNonAdminFunctionality() {
+    function disableAdminFunctionality() {
         [createBtn, updateBtn, deleteBtn].forEach(btn => {
             if (btn) btn.style.display = 'none';
         });

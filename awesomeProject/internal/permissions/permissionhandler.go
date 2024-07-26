@@ -1,8 +1,6 @@
 package user
 
-import (
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
 type User struct {
 	ID           uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
