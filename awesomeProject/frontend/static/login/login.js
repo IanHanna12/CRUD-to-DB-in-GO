@@ -8,14 +8,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const password = document.querySelector('input[type="password"]').value;
             const isAdmin = document.getElementById('isAdmin').checked;
 
-            localStorage.setItem('isAdmin', isAdmin);
-
-            // Redirect to appropriate view
-            if (isAdmin) {
-                window.location.href = 'http://localhost:8080/static/admin/admin_view.html';
-            } else {
-                window.location.href = 'http://localhost:8080/static/user/user_view.html';
-            }
+            fetch('http://localhost:8080/admin-login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password, isAdmin }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    data.sessionID = data.sessionID.toString();
+                    if (data.success) {
+                        localStorage.setItem('isAdmin', data.isAdmin);
+                        if (data.isAdmin) {
+                            localStorage.setItem('adminSessionID', data.sessionID);
+                            window.location.href = 'http://localhost:8080/static/admin/admin_view.html';
+                        } else {
+                            window.location.href = 'http://localhost:8080/static/user/user_view.html';
+                        }
+                    } else {
+                        alert('Login failed: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred during login');
+                });
         });
     }
 });

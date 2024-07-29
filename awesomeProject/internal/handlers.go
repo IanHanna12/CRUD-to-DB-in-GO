@@ -8,6 +8,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	_ "golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -15,7 +16,10 @@ import (
 	"time"
 )
 
-var isAdminMode bool
+var adminSessions = make(map[string]bool)
+
+// unhashed pwd for admin = admin
+const adminpwdHash = "$2a$10$XWN1bGzK5Y5JZw.Qx9Yl6O5tLtq5jZ1bJ1tQ5Yl6O5tLtq5jZ1bJ1"
 
 var ctx = context.Background()
 var rdb = redis.NewClient(&redis.Options{
@@ -230,42 +234,6 @@ func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Vary", "Origin")
-
-	var loginRequest struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-		IsAdmin  bool   `json:"isAdmin"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Invalid request body",
-		})
-		return
-	}
-
-	if loginRequest.Username != "" && loginRequest.Password != "" {
-		isAdminMode = loginRequest.IsAdmin
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"isAdmin": isAdminMode,
-			"message": "Login successful",
-		})
-	} else {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Invalid credentials",
-		})
-	}
-}
-
 func MainpageHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, ".js") {
 		w.Header().Set("Content-Type", "application/javascript")
@@ -290,4 +258,63 @@ func ServewithproperMIME(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFile(w, r, "frontend/static"+path)
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Vary", "Origin")
+
+	var loginRequest struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	isAdmin := loginRequest.Username == "admin" && loginRequest.Password == adminpwdHash
+
+	if loginRequest.Username != "" && loginRequest.Password != "" {
+		sessionID := ""
+		if isAdmin {
+			sessionID = uuid.New().String()
+			adminSessions[sessionID] = true
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":   true,
+			"isAdmin":   isAdmin,
+			"sessionID": sessionID,
+			"message":   "Login successful",
+		})
+	} else {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid credentials",
+		})
+	}
+}
+
+func WithadminAuthentication(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.Header.Get("Admin-Session-ID")
+		if sessionID == "" {
+			http.Error(w, "Unauthorized: No session ID provided", http.StatusUnauthorized)
+			return
+		}
+		//if sessionID not in map {
+		if !adminSessions[sessionID] {
+			http.Error(w, "Unauthorized: Invalid session ID", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
 }

@@ -27,12 +27,13 @@ func main() {
 
 	// API routes
 	router.HandleFunc("/items", handlers.CreateItemHandler).Methods("POST")
-	router.HandleFunc("/items", handlers.GetallitemsHandler).Methods("GET")
+	router.HandleFunc("/items", handlers.WithadminAuthentication(handlers.GetallitemsHandler)).Methods("GET")
 	router.HandleFunc("/items/{id}", handlers.GetitembyIDHandler).Methods("GET")
 	router.HandleFunc("/items/{id}", handlers.UpdateitemHandler).Methods("PUT")
-	router.HandleFunc("/items/{id}", handlers.DeleteitembyIDHandler).Methods("DELETE")
-	router.HandleFunc("/items", handlers.DeleteallitemsHandler).Methods("DELETE")
+	router.HandleFunc("/items/{id}", handlers.WithadminAuthentication(handlers.DeleteitembyIDHandler)).Methods("DELETE")
+	router.HandleFunc("/items", handlers.WithadminAuthentication(handlers.DeleteallitemsHandler)).Methods("DELETE")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
+	router.HandleFunc("/admin-login", handlers.AdminLoginHandler).Methods("POST")
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:63832"},
