@@ -1,18 +1,9 @@
-featureBranch02 brought up to date with featureBranch01
-
-26.07.2024:
-all functionalities of role based CRUD to database implemented, db used: MariaDB.
 
 
 
-# Admin Authentication Enhancement
 
 
-# Admin Authentication System
-
-## Overview
-This project implements a robust admin authentication system for a blog CRUD application, using UUID-based sessions and server-side verification.
-
+# Admin Authentication
 ## Key Features
 - Secure admin login with predefined credentials
 - UUID session token generation for admin sessions
