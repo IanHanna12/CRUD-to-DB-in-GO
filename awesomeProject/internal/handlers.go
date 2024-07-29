@@ -19,7 +19,7 @@ var isAdminMode bool
 
 var ctx = context.Background()
 var rdb = redis.NewClient(&redis.Options{
-	Addr: "localhost:8080",
+	Addr: "localhost:6379",
 	DB:   0,
 })
 
@@ -71,17 +71,17 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("GetAllItemsHandler: Started")
+func GetallitemsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("getallitemsHandler: Started")
 
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
-		log.Printf("GetAllItemsHandler: Database error: %v", err)
+		log.Printf("getallitemsHandler: Database error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("GetAllItemsHandler: Found %d items", len(items))
+	log.Printf("getallitemsHandler: Found %d items", len(items))
 
 	var responses []ItemResponse
 	for _, item := range items {
@@ -97,48 +97,48 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(responses); err != nil {
-		log.Printf("GetAllItemsHandler: JSON encoding error: %v", err)
+		log.Printf("getallitemsHandler: JSON encoding error: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("GetAllItemsHandler: Completed successfully")
+	log.Println("getallitemsHandler: Completed successfully")
 }
 
-func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("GetItemByIDHandler: Started")
+func GetitembyIDHandler(w http.ResponseWriter, r *http.Request) {
+
+	log.Println("getitembyIDHandler: Started")
 
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		log.Printf("GetItemByIDHandler: Invalid UUID: %s", idStr)
+		log.Printf("getitembyIDHandler: Invalid UUID: %s", idStr)
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
 		return
 	}
-	log.Printf("GetItemByIDHandler: Parsed UUID: %s", id)
-
+	log.Printf("getitembyIDHandler: Parsed UUID: %s", id)
 	cacheKey := "item:" + id.String()
 	cachedItem, err := rdb.Get(ctx, cacheKey).Result()
 	if err == nil {
-		log.Println("GetItemByIDHandler: Cache hit, returning cached item")
+		log.Println("getitembyIDHandler: Cache hit, returning cached item")
 		w.Write([]byte(cachedItem))
 		return
 	}
-	log.Println("GetItemByIDHandler: Cache miss, querying database")
+	log.Println("getitembyIDHandler: Cache miss, querying database")
 
 	var item model.Item
 	result := DB.First(&item, id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			log.Printf("GetItemByIDHandler: Item not found for ID: %s", id)
+			log.Printf("getitembyIDHandler: Item not found for ID: %s", id)
 			http.Error(w, "Item not found", http.StatusNotFound)
 		} else {
-			log.Printf("GetItemByIDHandler: Database error: %v", result.Error)
+			log.Printf("getitembyIDHandler: Database error: %v", result.Error)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
-	log.Printf("GetItemByIDHandler: Item found: %+v", item)
+	log.Printf("getitembyIDHandler: Item found: %+v", item)
 
 	response := ItemResponse{
 		ID:       item.ID,
@@ -149,16 +149,16 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	responseJSON, err := json.Marshal(response)
 	if err == nil {
-		log.Println("GetItemByIDHandler: Caching item")
+		log.Println("getitembyIDHandler: Caching item")
 		rdb.Set(ctx, cacheKey, responseJSON, 10*time.Minute)
 	}
 
-	log.Println("GetItemByIDHandler: Sending response")
+	log.Println("getitembyIDHandler: Sending response")
 	w.Write(responseJSON)
-	log.Println("GetItemByIDHandler: Response sent")
+	log.Println("getitembyIDHandler: Response sent")
 }
 
-func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
+func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -203,7 +203,7 @@ func UpdateItemHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteitembyIDHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -222,7 +222,7 @@ func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
 	if err := DB.Where("1 = 1").Delete(&model.Item{}).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -266,7 +266,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func MainPageHandler(w http.ResponseWriter, r *http.Request) {
+func MainpageHandler(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, ".js") {
 		w.Header().Set("Content-Type", "application/javascript")
 		http.ServeFile(w, r, "frontend/static/main_page/mainPage.js")
@@ -279,7 +279,7 @@ func MainPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ServeWithProperMIME(w http.ResponseWriter, r *http.Request) {
+func ServewithproperMIME(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if strings.HasSuffix(path, ".html") {
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")

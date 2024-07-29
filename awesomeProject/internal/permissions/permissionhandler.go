@@ -10,19 +10,19 @@ type User struct {
 	Role         string    `json:"role" gorm:"column:role"`
 }
 
-func (u *User) CanView(isAdminContent bool) bool {
+func (u *User) canView(isAdminContent bool) bool {
 	return u.Role == "admin" || !isAdminContent
 }
 
-func (u *User) CanCreate() bool {
+func (u *User) canCreate() bool {
 	return u.Role == "admin" || u.Role == "user"
 }
 
-func (u *User) CanUpdate() bool {
+func (u *User) canUpdate() bool {
 	return u.Role == "admin" || u.Role == "user"
 }
 
-func (u *User) CanDelete() bool {
+func (u *User) canDelete() bool {
 	return u.Role == "admin"
 }
 

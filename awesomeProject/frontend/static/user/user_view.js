@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const apiUrl = 'http://localhost:8080/items';
     let currentEditId = null;
 
-    // Set up event listeners for view buttons
     document.getElementById('view-by-id-btn').addEventListener('click', viewPostById);
     document.getElementById('view-all-btn').addEventListener('click', fetchPosts);
 
@@ -40,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     }
 
-    // Function to handle editing a post
+
     window.editPost = function (id) {
         fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
             // Populate form with post data
@@ -54,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // Function to fetch all posts
+
     function fetchPosts() {
         fetch(apiUrl)
             .then(response => {

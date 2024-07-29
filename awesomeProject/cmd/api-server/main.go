@@ -20,18 +20,18 @@ func main() {
 	fs := http.FileServer(http.Dir("./frontend/static"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 
-	router.PathPrefix("/static/").HandlerFunc(handlers.ServeWithProperMIME)
+	router.PathPrefix("/static/").HandlerFunc(handlers.ServewithproperMIME)
 
 	// Main page handler
-	router.HandleFunc("/", handlers.MainPageHandler)
+	router.HandleFunc("/", handlers.MainpageHandler)
 
 	// API routes
 	router.HandleFunc("/items", handlers.CreateItemHandler).Methods("POST")
-	router.HandleFunc("/items", handlers.GetAllItemsHandler).Methods("GET")
-	router.HandleFunc("/items/{id}", handlers.GetItemByIDHandler).Methods("GET")
-	router.HandleFunc("/items/{id}", handlers.UpdateItemHandler).Methods("PUT")
-	router.HandleFunc("/items/{id}", handlers.DeleteItemByIDHandler).Methods("DELETE")
-	router.HandleFunc("/items", handlers.DeleteAllItemsHandler).Methods("DELETE")
+	router.HandleFunc("/items", handlers.GetallitemsHandler).Methods("GET")
+	router.HandleFunc("/items/{id}", handlers.GetitembyIDHandler).Methods("GET")
+	router.HandleFunc("/items/{id}", handlers.UpdateitemHandler).Methods("PUT")
+	router.HandleFunc("/items/{id}", handlers.DeleteitembyIDHandler).Methods("DELETE")
+	router.HandleFunc("/items", handlers.DeleteallitemsHandler).Methods("DELETE")
 	router.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 
 	corsHandler := cors.New(cors.Options{
