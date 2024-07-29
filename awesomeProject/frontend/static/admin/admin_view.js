@@ -65,16 +65,27 @@ document.addEventListener('DOMContentLoaded', function() {
             author: form.author.value,
             content: form.content.value
         };
-        fetch(currentEditId ? `${apiUrl}/${currentEditId}` : apiUrl, {
-            method: currentEditId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(post)
-        }).then(() => {
-            currentEditId = null;
-            form.reset();
-            fetchPosts();
-        });
-    };
+        if (currentEditId) {
+            fetch(`${apiUrl}/${currentEditId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(post)
+            }).then(() => {
+                currentEditId = null;
+                form.reset();
+                fetchPosts();
+            });
+        } else {
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(post)
+            }).then(() => {
+                currentEditId = null;
+                form.reset();
+                fetchPosts();
+            });
+        }    };
 
     window.editPost = function(id) {
         fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
