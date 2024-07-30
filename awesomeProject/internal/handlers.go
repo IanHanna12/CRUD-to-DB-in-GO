@@ -3,12 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	_ "golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -16,10 +15,14 @@ import (
 	"time"
 )
 
-var adminSessions = make(map[string]bool)
+type Session struct {
+	UserID    string
+	Username  string
+	IsAdmin   bool
+	ExpiresAt time.Time
+}
 
-// unhashed pwd for admin = admin
-const adminpwdHash = "$2a$10$XWN1bGzK5Y5JZw.Qx9Yl6O5tLtq5jZ1bJ1tQ5Yl6O5tLtq5jZ1bJ1"
+var sessions = make(map[string]Session)
 
 var ctx = context.Background()
 var rdb = redis.NewClient(&redis.Options{
@@ -71,6 +74,7 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 		Content:  item.Content,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
 }
@@ -110,39 +114,30 @@ func GetallitemsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetitembyIDHandler(w http.ResponseWriter, r *http.Request) {
-
-	log.Println("getitembyIDHandler: Started")
+	sessionID := r.Header.Get("sessionID")
+	session, exists := sessions[sessionID]
+	if !exists {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		log.Printf("getitembyIDHandler: Invalid UUID: %s", idStr)
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
 		return
 	}
-	log.Printf("getitembyIDHandler: Parsed UUID: %s", id)
-	cacheKey := "item:" + id.String()
-	cachedItem, err := rdb.Get(ctx, cacheKey).Result()
-	if err == nil {
-		log.Println("getitembyIDHandler: Cache hit, returning cached item")
-		w.Write([]byte(cachedItem))
-		return
-	}
-	log.Println("getitembyIDHandler: Cache miss, querying database")
 
 	var item model.Item
-	result := DB.First(&item, id)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			log.Printf("getitembyIDHandler: Item not found for ID: %s", id)
-			http.Error(w, "Item not found", http.StatusNotFound)
-		} else {
-			log.Printf("getitembyIDHandler: Database error: %v", result.Error)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
+	if err := DB.First(&item, id).Error; err != nil {
+		http.Error(w, "Item not found", http.StatusNotFound)
 		return
 	}
-	log.Printf("getitembyIDHandler: Item found: %+v", item)
+
+	if !session.IsAdmin && item.Author != session.Username {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
+		return
+	}
 
 	response := ItemResponse{
 		ID:       item.ID,
@@ -151,18 +146,18 @@ func GetitembyIDHandler(w http.ResponseWriter, r *http.Request) {
 		Content:  item.Content,
 	}
 
-	responseJSON, err := json.Marshal(response)
-	if err == nil {
-		log.Println("getitembyIDHandler: Caching item")
-		rdb.Set(ctx, cacheKey, responseJSON, 10*time.Minute)
-	}
-
-	log.Println("getitembyIDHandler: Sending response")
-	w.Write(responseJSON)
-	log.Println("getitembyIDHandler: Response sent")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.Header.Get("sessionID")
+	session, exists := sessions[sessionID]
+	if !exists {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	idStr := mux.Vars(r)["id"]
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -170,9 +165,19 @@ func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var existingItem model.Item
+	if err := DB.First(&existingItem, id).Error; err != nil {
+		http.Error(w, "Item not found", http.StatusNotFound)
+		return
+	}
+
+	if !session.IsAdmin && existingItem.Author != session.Username {
+		http.Error(w, "Unauthorized", http.StatusForbidden)
+		return
+	}
+
 	var itemRequest struct {
 		Blogname string `json:"blogname"`
-		Author   string `json:"author"`
 		Content  string `json:"content"`
 	}
 
@@ -181,28 +186,22 @@ func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item := model.Item{
-		ID:       id,
-		Blogname: itemRequest.Blogname,
-		Author:   itemRequest.Author,
-		Content:  itemRequest.Content,
-	}
+	existingItem.Blogname = itemRequest.Blogname
+	existingItem.Content = itemRequest.Content
 
-	if err := DB.Save(&item).Error; err != nil {
+	if err := DB.Save(&existingItem).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	cacheKey := "item:" + id.String()
-	rdb.Del(ctx, cacheKey)
-
 	response := ItemResponse{
-		ID:       item.ID,
-		Blogname: item.Blogname,
-		Author:   item.Author,
-		Content:  item.Content,
+		ID:       existingItem.ID,
+		Blogname: existingItem.Blogname,
+		Author:   existingItem.Author,
+		Content:  existingItem.Content,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
@@ -224,6 +223,7 @@ func DeleteitembyIDHandler(w http.ResponseWriter, r *http.Request) {
 	rdb.Del(ctx, cacheKey)
 
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Item deleted successfully"))
 }
 
 func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
@@ -232,19 +232,7 @@ func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-
-func MainpageHandler(w http.ResponseWriter, r *http.Request) {
-	if strings.HasSuffix(r.URL.Path, ".js") {
-		w.Header().Set("Content-Type", "application/javascript")
-		http.ServeFile(w, r, "frontend/static/main_page/mainPage.js")
-	} else if strings.HasSuffix(r.URL.Path, "user_view.html") {
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-		http.ServeFile(w, r, "frontend/static/user/user_view.html")
-	} else {
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-		http.ServeFile(w, r, "awesomeProject/frontend/static/main_page/mainPage.html")
-	}
+	w.Write([]byte("All items deleted successfully"))
 }
 
 func ServewithproperMIME(w http.ResponseWriter, r *http.Request) {
@@ -261,8 +249,8 @@ func ServewithproperMIME(w http.ResponseWriter, r *http.Request) {
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("LoginHandler: Started")
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Vary", "Origin")
 
 	var loginRequest struct {
 		Username string `json:"username"`
@@ -270,6 +258,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
+		log.Printf("LoginHandler: Error decoding request body: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
@@ -278,23 +267,43 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isAdmin := loginRequest.Username == "admin" && loginRequest.Password == adminpwdHash
+	log.Printf("LoginHandler: Received login request for username: %s", loginRequest.Username)
 
-	if loginRequest.Username != "" && loginRequest.Password != "" {
-		sessionID := ""
+	isAdmin := loginRequest.Username == "admin"
+	var hashedPassword []byte
+	if isAdmin {
+		hashedPassword, _ = bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+	} else {
+		hashedPassword = []byte(loginRequest.Password)
+	}
+
+	if (isAdmin && bcrypt.CompareHashAndPassword(hashedPassword, []byte(loginRequest.Password)) == nil) ||
+		(!isAdmin && loginRequest.Password != "") {
+
+		sessionID := uuid.New().String()
+		sessions[sessionID] = Session{
+			UserID:    uuid.New().String(),
+			Username:  loginRequest.Username,
+			IsAdmin:   isAdmin,
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+		}
+
+		redirectURL := "/static/main_page/mainpage.html"
 		if isAdmin {
-			sessionID = uuid.New().String()
-			adminSessions[sessionID] = true
+			redirectURL = "/static/admin/admin_view.html"
 		}
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":   true,
-			"isAdmin":   isAdmin,
-			"sessionID": sessionID,
-			"message":   "Login successful",
+			"success":     true,
+			"isAdmin":     isAdmin,
+			"sessionID":   sessionID,
+			"message":     "Login successful",
+			"redirectURL": redirectURL,
 		})
+		log.Printf("LoginHandler: Login successful for user: %s", loginRequest.Username)
 	} else {
+		log.Println("LoginHandler: Invalid credentials")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
@@ -303,18 +312,34 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func WithadminAuthentication(next http.HandlerFunc) http.HandlerFunc {
+func WithAuthentication(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessionID := r.Header.Get("Admin-Session-ID")
-		if sessionID == "" {
-			http.Error(w, "Unauthorized: No session ID provided", http.StatusUnauthorized)
-			return
-		}
-		//if sessionID not in map {
-		if !adminSessions[sessionID] {
-			http.Error(w, "Unauthorized: Invalid session ID", http.StatusUnauthorized)
+		sessionID := r.Header.Get("sessionID")
+		session, exists := sessions[sessionID]
+		if !exists || time.Now().After(session.ExpiresAt) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 		next.ServeHTTP(w, r)
+	}
+}
+
+func WithAdminAuthentication(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID := r.Header.Get("sessionID")
+		session, exists := sessions[sessionID]
+		if !exists || time.Now().After(session.ExpiresAt) || !session.IsAdmin {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func CleanupSessions() {
+	for id, session := range sessions {
+		if time.Now().After(session.ExpiresAt) {
+			delete(sessions, id)
+		}
 	}
 }
