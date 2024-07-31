@@ -1,34 +1,18 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
+	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
+	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
-	"time"
 )
-
-type Session struct {
-	UserID    string
-	Username  string
-	IsAdmin   bool
-	ExpiresAt time.Time
-}
-
-var sessions = make(map[string]Session)
-
-var ctx = context.Background()
-var rdb = redis.NewClient(&redis.Options{
-	Addr: "localhost:6379",
-	DB:   0,
-})
 
 var DB *gorm.DB
 
@@ -79,17 +63,12 @@ func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func GetallitemsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("getallitemsHandler: Started")
-
+func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
-		log.Printf("getallitemsHandler: Database error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	log.Printf("getallitemsHandler: Found %d items", len(items))
 
 	var responses []ItemResponse
 	for _, item := range items {
@@ -102,63 +81,11 @@ func GetallitemsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(responses); err != nil {
-		log.Printf("getallitemsHandler: JSON encoding error: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	log.Println("getallitemsHandler: Completed successfully")
+	json.NewEncoder(w).Encode(responses)
 }
 
-func GetitembyIDHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.Header.Get("sessionID")
-	session, exists := sessions[sessionID]
-	if !exists {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	idStr := mux.Vars(r)["id"]
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid UUID", http.StatusBadRequest)
-		return
-	}
-
-	var item model.Item
-	if err := DB.First(&item, id).Error; err != nil {
-		http.Error(w, "Item not found", http.StatusNotFound)
-		return
-	}
-
-	if !session.IsAdmin && item.Author != session.Username {
-		http.Error(w, "Unauthorized", http.StatusForbidden)
-		return
-	}
-
-	response := ItemResponse{
-		ID:       item.ID,
-		Blogname: item.Blogname,
-		Author:   item.Author,
-		Content:  item.Content,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
-	sessionID := r.Header.Get("sessionID")
-	session, exists := sessions[sessionID]
-	if !exists {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	idStr := mux.Vars(r)["id"]
+func UpdateItemHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	idStr := ps.ByName("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
@@ -168,11 +95,6 @@ func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
 	var existingItem model.Item
 	if err := DB.First(&existingItem, id).Error; err != nil {
 		http.Error(w, "Item not found", http.StatusNotFound)
-		return
-	}
-
-	if !session.IsAdmin && existingItem.Author != session.Username {
-		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}
 
@@ -202,31 +124,27 @@ func UpdateitemHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
 
-func DeleteitembyIDHandler(w http.ResponseWriter, r *http.Request) {
-	idStr := mux.Vars(r)["id"]
+func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	idStr := ps.ByName("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		http.Error(w, "Invalid UUID", http.StatusBadRequest)
 		return
 	}
 
-	if err := DB.Delete(&model.Item{}, id).Error; err != nil {
+	if err := db.DeleteItemByID(id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	cacheKey := "item:" + id.String()
-	rdb.Del(ctx, cacheKey)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Item deleted successfully"))
 }
 
-func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
+func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
 	if err := DB.Where("1 = 1").Delete(&model.Item{}).Error; err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -235,111 +153,132 @@ func DeleteallitemsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("All items deleted successfully"))
 }
 
-func ServewithproperMIME(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	if strings.HasSuffix(path, ".html") {
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-	} else if strings.HasSuffix(path, ".js") {
-		w.Header().Set("Content-Type", "application/javascript")
-	} else if strings.HasSuffix(path, ".css") {
-		w.Header().Set("Content-Type", "text/css")
+func CreateUser(username string, password string) error {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
 	}
 
-	http.ServeFile(w, r, "frontend/static"+path)
+	user := model.User{
+		Username: username,
+		Password: string(hashedPassword),
+		IsAdmin:  username == "admin",
+	}
+
+	return DB.Create(&user).Error
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("LoginHandler: Started")
-	w.Header().Set("Content-Type", "application/json")
-
 	var loginRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
-		log.Printf("LoginHandler: Error decoding request body: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Invalid request body",
-		})
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("LoginHandler: Received login request for username: %s", loginRequest.Username)
+	var user model.User
+	if err := DB.Where("username = ?", loginRequest.Username).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if err := CreateUser(loginRequest.Username, loginRequest.Password); err != nil {
+				http.Error(w, "Failed to create user", http.StatusInternalServerError)
+				return
+			}
+			DB.Where("username = ?", loginRequest.Username).First(&user)
+		} else {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+	}
 
-	isAdmin := loginRequest.Username == "admin"
-	var hashedPassword []byte
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	isAdmin := user.IsAdmin
+	redirectURL := "/static/user/user_view.html"
 	if isAdmin {
-		hashedPassword, _ = bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-	} else {
-		hashedPassword = []byte(loginRequest.Password)
+		redirectURL = "/static/admin/admin_view.html"
 	}
 
-	if (isAdmin && bcrypt.CompareHashAndPassword(hashedPassword, []byte(loginRequest.Password)) == nil) ||
-		(!isAdmin && loginRequest.Password != "") {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":     true,
+		"isAdmin":     isAdmin,
+		"redirectURL": redirectURL,
+	})
+	log.Printf("User logged in: User=%s, IsAdmin=%v", user.Username, isAdmin)
+}
 
-		sessionID := uuid.New().String()
-		sessions[sessionID] = Session{
-			UserID:    uuid.New().String(),
-			Username:  loginRequest.Username,
-			IsAdmin:   isAdmin,
-			ExpiresAt: time.Now().Add(24 * time.Hour),
+func AuthMiddleware(adminRequired bool) func(http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			isAdmin, _ := strconv.ParseBool(r.Header.Get("isAdmin"))
+			if adminRequired && !isAdmin {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
 		}
+	}
+}
 
-		redirectURL := "/static/main_page/mainpage.html"
-		if isAdmin {
-			redirectURL = "/static/admin/admin_view.html"
-		}
+func PrefetchItemsHandler(w http.ResponseWriter, r *http.Request) {
+	var items []model.Item
+	if err := DB.Limit(1000).Order("created_at desc").Find(&items).Error; err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":     true,
-			"isAdmin":     isAdmin,
-			"sessionID":   sessionID,
-			"message":     "Login successful",
-			"redirectURL": redirectURL,
+	var responses []ItemResponse
+	for _, item := range items {
+		responses = append(responses, ItemResponse{
+			ID:       item.ID,
+			Blogname: item.Blogname,
+			Author:   item.Author,
+			Content:  item.Content,
 		})
-		log.Printf("LoginHandler: Login successful for user: %s", loginRequest.Username)
-	} else {
-		log.Println("LoginHandler: Invalid credentials")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Invalid credentials",
-		})
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(responses)
 }
 
-func WithAuthentication(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		sessionID := r.Header.Get("sessionID")
-		session, exists := sessions[sessionID]
-		if !exists || time.Now().After(session.ExpiresAt) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
+func serveStatic(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, ".js") {
+		w.Header().Set("Content-Type", "application/javascript")
 	}
+	http.FileServer(http.Dir("./frontend/static")).ServeHTTP(w, r)
 }
 
-func WithAdminAuthentication(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		sessionID := r.Header.Get("sessionID")
-		session, exists := sessions[sessionID]
-		if !exists || time.Now().After(session.ExpiresAt) || !session.IsAdmin {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		next.ServeHTTP(w, r)
+func GetItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	idStr := ps.ByName("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid UUID", http.StatusBadRequest)
+		return
 	}
-}
 
-func CleanupSessions() {
-	for id, session := range sessions {
-		if time.Now().After(session.ExpiresAt) {
-			delete(sessions, id)
+	var item model.Item
+	if err := DB.First(&item, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			http.Error(w, "Item not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
+		return
 	}
+
+	response := ItemResponse{
+		ID:       item.ID,
+		Blogname: item.Blogname,
+		Author:   item.Author,
+		Content:  item.Content,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

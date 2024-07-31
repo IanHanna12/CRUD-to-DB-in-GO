@@ -9,48 +9,46 @@ import (
 	"time"
 )
 
-func globalCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
-	db := db.InitDB()
-	handlers.InitHandlers(db)
+	database := db.InitDB() // Renamed variable to avoid collision
+	handlers.InitHandlers(database)
 
 	router := httprouter.New()
-
 	router.ServeFiles("/static/*filepath", http.Dir("./frontend/static"))
 
-	router.POST("/items", wrapHandler(handlers.CreateItemHandler))
-	router.GET("/items", wrapHandler(handlers.WithAuthentication(handlers.GetallitemsHandler)))
-	router.GET("/items/:id", wrapHandler(handlers.WithAuthentication(handlers.GetitembyIDHandler)))
-	router.PUT("/items/:id", wrapHandler(handlers.WithAuthentication(handlers.UpdateitemHandler)))
-	router.DELETE("/items/:id", wrapHandler(handlers.WithAdminAuthentication(handlers.DeleteitembyIDHandler)))
-	router.DELETE("/items", wrapHandler(handlers.WithAdminAuthentication(handlers.DeleteallitemsHandler)))
-	router.POST("/login", wrapHandler(handlers.LoginHandler))
-
-	go func() {
-		for {
-			time.Sleep(1 * time.Hour)
-			handlers.CleanupSessions()
-		}
-	}()
-
-	handler := globalCORS(router)
+	router.POST("/login", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.LoginHandler(w, r)
+	})
+	router.GET("/items/all", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.AuthMiddleware(false)(handlers.GetAllItemsHandler)(w, r)
+	})
+	router.POST("/items/create", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.AuthMiddleware(false)(handlers.CreateItemHandler)(w, r)
+	})
+	router.GET("/items/single/:id", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		handlers.AuthMiddleware(false)(func(w http.ResponseWriter, r *http.Request) {
+			handlers.GetItemByIDHandler(w, r, ps)
+		})(w, r)
+	})
+	router.PUT("/items/update/:id", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		handlers.AuthMiddleware(false)(func(w http.ResponseWriter, r *http.Request) {
+			handlers.UpdateItemHandler(w, r, ps)
+		})(w, r)
+	})
+	router.DELETE("/items/delete/:id", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		handlers.AuthMiddleware(true)(func(w http.ResponseWriter, r *http.Request) {
+			handlers.DeleteItemByIDHandler(w, r, ps)
+		})(w, r)
+	})
+	router.DELETE("/items/all", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler)(w, r)
+	})
+	router.GET("/items/prefetch", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.AuthMiddleware(false)(handlers.PrefetchItemsHandler)(w, r)
+	})
 
 	serverConf := &http.Server{
-		Handler:      handler,
+		Handler:      globalCORS(router),
 		Addr:         ":8080",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
@@ -63,8 +61,11 @@ func main() {
 	}
 }
 
-func wrapHandler(h http.HandlerFunc) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		h(w, r)
-	}
+func globalCORS(router *httprouter.Router) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		router.ServeHTTP(w, r)
+	})
 }

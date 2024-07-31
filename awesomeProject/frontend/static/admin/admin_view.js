@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
     const form = document.getElementById('post-form');
     const postsContainer = document.getElementById('posts-container');
     const apiUrl = 'http://localhost:8080/items';
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function viewPostById() {
         const id = document.getElementById('post-id-input').value;
         if (id) {
-            fetch(`${apiUrl}/${id}`)
+            fetchWithAuth(`${apiUrl}/single/${id}`)
                 .then(res => res.json())
                 .then(post => {
                     postsContainer.innerHTML = renderPost(post);
@@ -32,30 +33,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchPosts() {
-        fetch(apiUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    renderPosts(data);
-                } else {
-                    console.error('Invalid response data:', data);
-                    renderPosts([]);
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching posts:', error);
-                renderPosts([]);
-            });
+        fetchWithAuth(`${apiUrl}/all`)
+            .then(renderPosts)
+            .catch(error => console.error('Error fetching posts:', error));
     }
 
 
     function renderPosts(posts) {
         postsContainer.innerHTML = posts.map(renderPost).join('') || '<p>No posts available</p>';
+    }
+
+    function prefetchItems() {
+        fetchWithAuth(`${apiUrl}/prefetch`)
+            .then(res => res.json())
+            .then(items => {
+                console.log('Prefetched items:', items);
+                renderPosts(items);
+            })
+            .catch(error => console.error('Error prefetching items:', error));
     }
 
     form.onsubmit = function(e) {
@@ -65,50 +60,57 @@ document.addEventListener('DOMContentLoaded', function() {
             author: form.author.value,
             content: form.content.value
         };
-        if (currentEditId) {
-            fetch(`${apiUrl}/${currentEditId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(post)
-            }).then(() => {
-                currentEditId = null;
-                form.reset();
-                fetchPosts();
-            });
-        } else {
-            fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(post)
-            }).then(() => {
-                currentEditId = null;
-                form.reset();
-                fetchPosts();
-            });
-        }    };
+        fetchWithAuth(currentEditId ? `${apiUrl}/update/${currentEditId}` : `${apiUrl}/create`, {
+            method: currentEditId ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(post)
+        }).then(() => {
+            currentEditId = null;
+            form.reset();
+            fetchPosts();
+        });
+    };
 
     window.editPost = function(id) {
-        fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
-            form.blogname.value = post.blogname;
-            form.author.value = post.author;
-            form.content.value = post.content;
-            currentEditId = id;
-            document.getElementById('submit-btn').textContent = 'Update Post';
-            document.getElementById('edit-btn').style.display = 'inline-block';
-        });
+        fetchWithAuth(`${apiUrl}/single/${id}`)
+            .then(res => res.json())
+            .then(post => {
+                form.blogname.value = post.blogname;
+                form.author.value = post.author;
+                form.content.value = post.content;
+                currentEditId = id;
+                document.getElementById('submit-btn').textContent = 'Update Post';
+                document.getElementById('edit-btn').style.display = 'inline-block';
+            });
     };
 
     window.deletePost = function(id) {
         if (confirm('Are you sure you want to delete this post?')) {
-            fetch(`${apiUrl}/${id}`, { method: 'DELETE' }).then(fetchPosts);
+            fetchWithAuth(`${apiUrl}/delete/${id}`, { method: 'DELETE' }).then(fetchPosts);
         }
     };
 
     function deleteAllPosts() {
         if (confirm('Are you sure you want to delete all posts?')) {
-            fetch(apiUrl, { method: 'DELETE' }).then(fetchPosts);
+            fetchWithAuth(`${apiUrl}/all`, { method: 'DELETE' }).then(fetchPosts);
         }
     }
 
-    fetchPosts();
+    function fetchWithAuth(url, options = {}) {
+        options.headers = {
+            ...options.headers,
+            'isAdmin': isAdmin.toString()
+        };
+        return fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            });
+    }
+
+    prefetchItems();
 });

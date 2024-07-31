@@ -1,34 +1,33 @@
-// This script manages the user view for the blog CRUD application
-// It handles fetching, displaying, creating, and editing blog posts
-
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize variables and get DOM elements
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
     const form = document.getElementById('post-form');
     const postsContainer = document.getElementById('posts-container');
     const apiUrl = 'http://localhost:8080/items';
     let currentEditId = null;
 
-    document.getElementById('view-by-id-btn').addEventListener('click', viewPostById);
-    document.getElementById('view-all-btn').addEventListener('click', fetchPosts);
+    const viewByIdBtn = document.getElementById('view-by-id-btn');
 
-    // Function to view a single post by its ID
-    function viewPostById() {
-        const id = document.getElementById('post-id-input').value;
-        if (id) {
-            fetch(`${apiUrl}/${id}`)
-                .then(res => res.json())
-                .then(post => {
-                    postsContainer.innerHTML = renderPost(post);
-                })
-                .catch(error => {
-                    console.error('Error fetching post:', error);
-                    postsContainer.innerHTML = '<p>Error fetching post</p>';
-                });
+    if (isAdmin) {
+        const viewAllBtn = document.getElementById('view-all-btn');
+        if (viewAllBtn) {
+            viewAllBtn.addEventListener('click', fetchPosts);
         }
     }
 
-    // Function to render a single post HTML
-    function renderPost(post) {
+
+    function viewPostById() {
+        const id = document.getElementById('post-id-input').value;
+        if (id) {
+            fetchWithAuth(`${apiUrl}/single/${id}`)
+                .then(post => {
+                    postsContainer.innerHTML = renderPost(post);
+                })
+                .catch(error => console.error('Error fetching post:', error));
+        }
+    }
+
+    function renderPost(post)
+    {
         return `
         <div class="blog-post">
             <h3>${post.blogname}</h3>
@@ -39,77 +38,92 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     }
 
-
-    window.editPost = function (id) {
-        fetch(`${apiUrl}/${id}`).then(res => res.json()).then(post => {
-            // Populate form with post data
-            form.blogname.value = post.blogname;
-            form.author.value = post.author;
-            form.content.value = post.content;
-            currentEditId = id;
-            // Update UI, change submit button text, and show edit button
-            document.getElementById('submit-btn').textContent = 'Update Post';
-            document.getElementById('edit-btn').style.display = 'inline-block';
-        });
-    };
-
-
     function fetchPosts() {
-        fetch(apiUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    renderPosts(data);
-                } else {
-                    console.error('Invalid response data:', data);
-                    renderPosts([]);
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching posts:', error);
-                renderPosts([]);
-            });
+        fetchWithAuth(`${apiUrl}/all`)
+            .then(renderPosts)
+            .catch(error => console.error('Error fetching posts:', error));
     }
 
-    // Function to render all posts
     function renderPosts(posts) {
         postsContainer.innerHTML = posts.map(renderPost).join('') || '<p>No posts available</p>';
     }
 
-    // Handle form submission for creating or updating a post
-    form.onsubmit = function (e) {
-        e.preventDefault();
-        const post = {
-            blogname: form.blogname.value,
-            author: form.author.value,
-            content: form.content.value
-        };
-        fetch(currentEditId ? `${apiUrl}/${currentEditId}` : apiUrl, {
-            method: currentEditId ? 'PUT' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(post)
-        })
-            .then(() => {
-                // Reset form and UI after successful submission
-                currentEditId = null;
-                form.reset();
-                document.getElementById('submit-btn').textContent = 'Add Post';
-                document.getElementById('edit-btn').style.display = 'none';
-                fetchPosts();
+    function prefetchItems() {
+        fetchWithAuth(`${apiUrl}/prefetch`)
+            .then(items => {
+                console.log('Prefetched items:', items);
+                renderPosts(items);
             })
-            .catch(error => console.error('Error saving post:', error));
+            .catch(error => console.error('Error prefetching items:', error));
+    }
+
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const post = {
+                blogname: form.blogname.value,
+                author: form.author.value,
+                content: form.content.value
+            };
+            fetchWithAuth(currentEditId ? `${apiUrl}/update/${currentEditId}` : `${apiUrl}/create`, {
+                method: currentEditId ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(post)
+            })
+                .then(() => {
+                    currentEditId = null;
+                    form.reset();
+                    document.getElementById('submit-btn').textContent = 'Add Post';
+                    document.getElementById('edit-btn').style.display = 'none';
+                    fetchPosts();
+                })
+                .catch(error => console.error('Error saving post:', error));
+        };
+    }
+
+    window.editPost = function(id)
+    { {
+        currentEditId = id;
+        document.getElementById('submit-btn').textContent = 'Update Post';
+        document.getElementById('edit-btn').style.display = 'inline-block';
+    };
+        fetchWithAuth(`${apiUrl}/single/${id}`)
+            .then(post => {
+                form.blogname.value = post.blogname;
+                form.author.value = post.author;
+                form.content.value = post.content;
+                currentEditId = id;
+                document.getElementById('submit-btn').textContent = 'Update Post';
+                document.getElementById('edit-btn').style.display = 'inline-block';
+            })
+            .catch(error => console.error('Error editing post:', error));
     };
 
-    // Handle canceling edit
-    document.getElementById('edit-btn').addEventListener('click', function () {
-        currentEditId = null;
-        form.reset();
-        document.getElementById('submit-btn').textContent = 'Add Post';
-        this.style.display = 'none';
-    });
-})
+    const editBtn = document.getElementById('edit-btn');
+    if (editBtn) {
+        editBtn.addEventListener('click', function() {
+            currentEditId = null;
+            form.reset();
+            document.getElementById('submit-btn').textContent = 'Add Post';
+            this.style.display = 'none';
+        });
+    }
+
+    function fetchWithAuth(url, options = {}) {
+        options.headers = {
+            ...options.headers,
+            'isAdmin': isAdmin.toString()
+        };
+        return fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            });
+    }
+
+    prefetchItems();
+});

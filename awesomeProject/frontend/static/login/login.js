@@ -18,17 +18,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     console.log('Login response:', data);
                     if (data.success) {
-                        localStorage.setItem('sessionID', data.sessionID);
                         localStorage.setItem('isAdmin', data.isAdmin);
-                        console.log('Redirecting to:', 'http://localhost:8080' + data.redirectURL);
-                        window.location.replace('http://localhost:8080' + data.redirectURL);
+                        console.log('Redirecting to:', data.redirectURL);
+                        window.location.href = 'http://localhost:8080' + data.redirectURL;
                     } else {
-                        alert('Login failed: ' + data.error);
+                        alert('Login failed: ' + (data.error || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('Login error:', error);
-                    alert('An error occurred during login');
+                    alert('An error occurred during login:' + error);
                 });
         });
     }
