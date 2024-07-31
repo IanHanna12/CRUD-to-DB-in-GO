@@ -7,12 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const viewByIdBtn = document.getElementById('view-by-id-btn');
 
-    if (isAdmin) {
-        const viewAllBtn = document.getElementById('view-all-btn');
-        if (viewAllBtn) {
-            viewAllBtn.addEventListener('click', fetchPosts);
-        }
-    }
+    viewByIdBtn.addEventListener('click', viewPostById);
 
 
     function viewPostById() {
