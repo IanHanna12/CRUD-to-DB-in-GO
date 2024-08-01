@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	database := db.InitDB() // Renamed variable to avoid collision
+	database := db.InitDB()
 	handlers.InitHandlers(database)
 
 	router := httprouter.New()
@@ -45,6 +45,9 @@ func main() {
 	})
 	router.GET("/items/prefetch", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		handlers.AuthMiddleware(false)(handlers.PrefetchItemsHandler)(w, r)
+	})
+	router.GET("/validate-session", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		handlers.ValidateSessionHandler(w, r)
 	})
 
 	serverConf := &http.Server{

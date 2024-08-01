@@ -2,10 +2,7 @@ package app
 
 import (
 	"github.com/google/uuid"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"log"
 )
 
 type Item struct {
@@ -16,20 +13,4 @@ type Item struct {
 	Permission string    `json:"permission" gorm:"column:permission"`
 }
 
-var DB *gorm.DB // Database connection
-
-func initDB() {
-	var err error
-	dsn := "root:abcd@tcp(127.0.0.1:3306)/test?allowNativePasswords=true"
-	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	if err != nil {
-		log.Fatalf("Error opening database: %v", err)
-	}
-
-	err = DB.AutoMigrate(&Item{})
-	if err != nil {
-		log.Fatalf("Error migrating database: %v", err)
-	}
-}
+var DB *gorm.DB

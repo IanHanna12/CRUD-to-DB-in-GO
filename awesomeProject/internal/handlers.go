@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 )
 
 var DB *gorm.DB
@@ -160,6 +159,7 @@ func CreateUser(username string, password string) error {
 	}
 
 	user := model.User{
+		ID:       uuid.New(),
 		Username: username,
 		Password: string(hashedPassword),
 		IsAdmin:  username == "admin",
@@ -176,7 +176,9 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
 		return
 	}
 
@@ -184,18 +186,24 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if err := DB.Where("username = ?", loginRequest.Username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if err := CreateUser(loginRequest.Username, loginRequest.Password); err != nil {
-				http.Error(w, "Failed to create user", http.StatusInternalServerError)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create user"})
 				return
 			}
 			DB.Where("username = ?", loginRequest.Username).First(&user)
 		} else {
-			http.Error(w, "Database error", http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
 			return
 		}
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid credentials"})
 		return
 	}
 
@@ -205,13 +213,17 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		redirectURL = "/static/admin/admin_view.html"
 	}
 
+	fullRedirectURL := "http://localhost:8080" + redirectURL
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"success":     true,
 		"isAdmin":     isAdmin,
-		"redirectURL": redirectURL,
-	})
-	log.Printf("User logged in: User=%s, IsAdmin=%v", user.Username, isAdmin)
+		"redirectURL": fullRedirectURL,
+		"userID":      user.ID.String(),
+	}
+	json.NewEncoder(w).Encode(response)
+	log.Printf("Login response sent: %+v", response)
 }
 
 func AuthMiddleware(adminRequired bool) func(http.HandlerFunc) http.HandlerFunc {
@@ -228,31 +240,25 @@ func AuthMiddleware(adminRequired bool) func(http.HandlerFunc) http.HandlerFunc 
 }
 
 func PrefetchItemsHandler(w http.ResponseWriter, r *http.Request) {
-	var items []model.Item
-	if err := DB.Limit(1000).Order("created_at desc").Find(&items).Error; err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	userID := r.URL.Query().Get("userID")
+	if userID == "" {
+		http.Error(w, "UserID is required", http.StatusBadRequest)
 		return
 	}
 
-	var responses []ItemResponse
-	for _, item := range items {
-		responses = append(responses, ItemResponse{
-			ID:       item.ID,
-			Blogname: item.Blogname,
-			Author:   item.Author,
-			Content:  item.Content,
-		})
+	var items []model.Item
+	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
+		log.Printf("Error fetching items: %v", err)
+		http.Error(w, "Error fetching items", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string][]model.Item{
+		"prefetchedItems": items,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responses)
-}
-
-func serveStatic(w http.ResponseWriter, r *http.Request) {
-	if strings.HasSuffix(r.URL.Path, ".js") {
-		w.Header().Set("Content-Type", "application/javascript")
-	}
-	http.FileServer(http.Dir("./frontend/static")).ServeHTTP(w, r)
+	json.NewEncoder(w).Encode(response)
 }
 
 func GetItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -282,4 +288,25 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func ValidateSessionHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userID")
+	if userID == "" {
+		http.Error(w, "UserID is required", http.StatusBadRequest)
+		return
+	}
+
+	var user model.User
+	if err := DB.First(&user, "id = ?", userID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			http.Error(w, "Invalid session", http.StatusUnauthorized)
+		} else {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"valid": true})
 }

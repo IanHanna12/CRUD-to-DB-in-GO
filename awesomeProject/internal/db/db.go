@@ -27,6 +27,7 @@ func InitDB() *gorm.DB {
 		log.Fatalf("Error migrating database: %v", err)
 	}
 
+	DB = db
 	return db
 }
 
