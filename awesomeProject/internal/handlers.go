@@ -172,6 +172,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var loginRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		//UserID   string `json:"user_id"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {

@@ -51,4 +51,5 @@ user_view: Post blog and edit the posts name and content works (editing author n
 view by id works)
 
 
-TODO: Test admin view
+TODO: Test admin view, prefetch by userID to get all blogs of a user but 
+                       restrict to only the user's own blogs
