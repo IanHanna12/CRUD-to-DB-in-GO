@@ -1,94 +1,54 @@
-# Authentication System
+# Authentication, Session Management, and Route Security
+DEPRECATED
+## Authentication
 
-## Key Features
-- Secure user authentication with admin and regular user roles
-- UUID session token generation for all authenticated sessions
-- Middleware-based protection for authenticated and admin-only routes
-- Session expiration and cleanup mechanism
+~~~~~~The system uses a username and password-based authentication mechanism. Passwords are securely hashed using bcrypt before storage in the database.
 
-## Implementation
+### User Creation
+- New users can be created through the `/login` endpoint.
+- The `CreateUser` function handles user creation, setting the `IsAdmin` field to 0 for admins and 1 for regular users.
 
-### Session Structure:
-
-
-type Session struct {
-     UserID    string
-     Username  string
-     IsAdmin   bool
-     ExpiresAt time.Time
-}
-
-
-### Login Process:
-- Users authenticate via the `/login` endpoint
-- Admin status determined by username "admin" and password check
-- UUID session token generated for all successful logins
-- Session stored in sessions map with user details and expiration
-
-### Session Management:
-- All sessions stored server-side in sessions map
-- Client stores session UUID for subsequent requests
-- Sessions include user ID, username, admin status, and expiration time
-
-### Route Protection:
-- `WithAuthentication` middleware secures authenticated-only routes
-- `WithAdminAuthentication` middleware secures admin-only routes
-- Verifies presence and validity of session UUID in request headers
-- Checks session expiration and admin status for appropriate access
-
-## Usage
-- User login: Any non-empty username and password
-- Admin login: Username "admin", password "admin"
-- Protected routes: Include session UUID in request headers
-
-## Code Snippets
-
-### Login Handler
-
-
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-     // ... 
-     if loginSuccessful {
-         sessionID := uuid.New().String()
-         sessions[sessionID] = Session{
-             UserID:    uuid.New().String(),
-             Username:  loginRequest.Username,
-             IsAdmin:   isAdmin,
-             ExpiresAt: time.Now().Add(24 * time.Hour),
-         }
-         // ... (return session ID and redirect URL to client)
-     }
-}
+### Login Process
+1. Users submit credentials to the `/login` endpoint.
+2. The system checks if the user exists:
+    - If not, a new user is created.
+    - If yes, the password is verified against the stored hash.
+3. Upon successful authentication, the isAdmin (bool) flag is returned in header and used for all subsequent requests.
 
 
 
-1. Login Initiation:
-    - User submits credentials via the login form in login.html.
-    - login.js captures the form submission and sends a POST request to '/login'.
 
-2. Server-side Authentication (LoginHandler):
-    - Receives login request and validates credentials.
-    - For admin, checks against hardcoded "admin" username and password.
-    - For regular users, accepts any non-empty password.
+## Route Security
 
-3. Session Creation:
-    - Upon successful authentication, generates a UUID for the session.
-    - Creates a Session struct with user details and expiration time.
-    - Stores the session in the server-side 'sessions' map.
+Routes are secured using middleware functions that check for valid isAdmin status 
 
-4. Client-side Session Storage:
-    - Server sends back sessionID and user role (isAdmin).
-    - login.js stores these in localStorage for subsequent requests.
+### AuthMiddleware
+- Verifies the presence of a valid admin status in the request header.
 
-5. Protected Route Access:
-    - mainPage.js includes sessionID in the header of each API request.
-    - Server uses middleware (WithAuthentication/WithAdminAuthentication) to validate the sessionID.
-    - Middleware checks if the session exists and hasn't expired.
+- For admin-only routes, it verifies the user's admin status and allows the request to proceed if the user is an admin, else blocked.
 
-6. Role-based Access Control:
-    - WithAdminAuthentication middleware ensures only admin users access certain routes.
-    - Regular authentication allows access to user-level functionalities.
+### Route Protection
 
-7. Session Management:
-    - Sessions have a 24-hour expiration.
-    - Sessions are stored in a server-side map.
+- Authenticated routes: Require valid login credentials and login.
+- Admin routes: Require valid admin status to proceed.
+
+### Implementation
+- The `AuthMiddleware` function is used as a wrapper for protected routes in routing.
+
+## Security 
+- Passwords are never stored in plain text.
+- Passwords are hashed using bcrypt before storage in the database.
+- Admin status is determined by the `IsAdmin` field in the sent request header.
+- All routes require valid login credentials and login.
+- All admin routes require valid admin status to proceed.
+
+
+
+-- 31.07.2024
+user view works as intended
+
+user_view: Post blog and edit the posts name and content works (editing author name of blog is blocked,
+view by id works)
+
+
+TODO: Test admin view
