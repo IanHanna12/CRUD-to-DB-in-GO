@@ -33,7 +33,7 @@ Routes are secured using middleware functions that check for valid isAdmin statu
 - Admin routes: Require valid admin status to proceed.
 
 ### Implementation
-- The `AuthMiddleware` function is used as a wrapper for  routes in routing.
+- The `AuthMiddleware` function is used as a wrapper for protected routes in routing.
 
 ## Security 
 - Passwords are never stored in plain text.
