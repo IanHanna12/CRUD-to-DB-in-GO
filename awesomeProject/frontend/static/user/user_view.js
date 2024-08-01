@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     viewByIdBtn.addEventListener('click', viewPostById);
 
-
     function viewPostById() {
         const id = document.getElementById('post-id-input').value;
         if (id) {
@@ -21,8 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function renderPost(post)
-    {
+    function renderPost(post) {
         return `
         <div class="blog-post">
             <h3>${post.blogname}</h3>
@@ -76,12 +74,10 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    window.editPost = function(id)
-    { {
+    window.editPost = function(id) {
         currentEditId = id;
         document.getElementById('submit-btn').textContent = 'Update Post';
         document.getElementById('edit-btn').style.display = 'inline-block';
-    };
         fetchWithAuth(`${apiUrl}/single/${id}`)
             .then(post => {
                 form.blogname.value = post.blogname;

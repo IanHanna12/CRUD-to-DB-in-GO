@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({username, password}),
+                body: JSON.stringify({ username, password }),
             })
                 .then(response => response.json())
                 .then(data => {
@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (data.success) {
                         localStorage.setItem('isAdmin', data.isAdmin);
                         console.log('Redirecting to:', data.redirectURL);
-                        window.location.href = 'http://localhost:8080' + data.redirectURL;
+                        window.location.href = data.redirectURL;
                     } else {
                         alert('Login failed: ' + (data.error || 'Unknown error'));
                     }

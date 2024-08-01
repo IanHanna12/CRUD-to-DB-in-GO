@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Error fetching posts:', error));
     }
 
-
     function renderPosts(posts) {
         postsContainer.innerHTML = posts.map(renderPost).join('') || '<p>No posts available</p>';
     }
@@ -112,5 +111,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
+    // Call prefetchItems when the page loads
     prefetchItems();
 });
