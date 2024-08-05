@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
             const username = document.querySelector('input[name="username"]').value;
             const password = document.querySelector('input[name="password"]').value;
+            //TODO carry over username to main page
             localStorage.setItem('username', username);
 
             fetch('http://localhost:8080/login', {

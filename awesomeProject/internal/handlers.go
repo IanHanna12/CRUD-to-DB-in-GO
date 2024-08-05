@@ -54,6 +54,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 				Username:  credentials.Username,
 				Password:  string(hashedPassword),
 				SessionID: "",
+				// if username is admin --> isAdmin = true
+				IsAdmin: credentials.Username == "admin",
 			}
 			if err := DB.Create(&user).Error; err != nil {
 				http.Error(w, "Error creating user", http.StatusInternalServerError)
