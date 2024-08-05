@@ -43,16 +43,32 @@ func LoginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var user model.User
 	if err := DB.Where("username = ?", credentials.Username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			// Create a new user
+			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(credentials.Password), bcrypt.DefaultCost)
+			if err != nil {
+				http.Error(w, "Error creating user", http.StatusInternalServerError)
+				return
+			}
+			user = model.User{
+				ID:        uuid.New(),
+				Username:  credentials.Username,
+				Password:  string(hashedPassword),
+				SessionID: "",
+			}
+			if err := DB.Create(&user).Error; err != nil {
+				http.Error(w, "Error creating user", http.StatusInternalServerError)
+				return
+			}
 		} else {
 			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
 		}
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
-		return
+	} else {
+		// Verify password for existing user
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	sessionID, sessionToken := SetSessionCookie(w, user.ID)

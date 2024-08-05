@@ -129,15 +129,15 @@
     <h1>User View - Blog CRUD App</h1>
 
     <div class="view-controls">
-        <input type="text" id="post-id-input" placeholder="Enter Post ID">
+        <label for="post-id-input"></label><input type="text" id="post-id-input" placeholder="Enter Post ID">
         <button id="view-by-id-btn">View Post by ID</button>
     </div>
 
     <form id="post-form">
         <input type="hidden" id="item-id">
-        <input type="text" id="blogname" placeholder="Blog Title" required>
-        <input type="text" id="author" placeholder="Author" required>
-        <textarea id="content" placeholder="Content" required></textarea>
+        <label for="blogname"></label><input type="text" id="blogname" placeholder="Blog Title" required>
+        <label for="author"></label><input type="text" id="author" placeholder="Author" required>
+        <label for="content"></label><label for="content"></label><textarea id="content" placeholder="Content" required></textarea>
         <button type="submit" id="submit-btn">Add Post</button>
         <button type="button" id="edit-btn" style="display: none;">Edit Post</button>
     </form>

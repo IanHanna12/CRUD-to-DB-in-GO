@@ -1,4 +1,3 @@
-
 document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.querySelector('form');
 
@@ -7,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
             const username = document.querySelector('input[name="username"]').value;
             const password = document.querySelector('input[name="password"]').value;
+            localStorage.setItem('username', username);
 
             fetch('http://localhost:8080/login', {
                 method: 'POST',
@@ -25,13 +25,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         console.log('Login successful:', data);
+
                         localStorage.setItem('sessionToken', data.session_token);
+                        localStorage.setItem('username', username);
 
                         if (data.isAdmin) {
                             window.location.href = 'http://localhost:8080/static/admin/admin_view.html';
                         } else {
                             window.location.href = 'http://localhost:8080/static/user/user_view.html';
-
                         }
                     } else {
                         console.error('Login failed:', data.error || 'Unknown error');

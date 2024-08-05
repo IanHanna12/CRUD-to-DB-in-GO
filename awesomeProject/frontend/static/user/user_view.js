@@ -5,8 +5,17 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentEditId = null;
     let prefetchedItems = [];
 
+    const username = localStorage.getItem('username');
+    const authorInput = document.getElementById('author');
+    if (username && authorInput) {
+        authorInput.value = username;
+        authorInput.readOnly = true;
+    }
+
     const viewByIdBtn = document.getElementById('view-by-id-btn');
-    viewByIdBtn.addEventListener('click', viewPostById);
+    if (viewByIdBtn) {
+        viewByIdBtn.addEventListener('click', viewPostById);
+    }
 
     function viewPostById() {
         const id = document.getElementById('post-id-input').value;
@@ -66,7 +75,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-
     if (form) {
         form.onsubmit = function (e) {
             e.preventDefault();
@@ -96,7 +104,6 @@ document.addEventListener('DOMContentLoaded', function () {
         currentEditId = id;
         document.getElementById('submit-btn').textContent = 'Update Post';
         document.getElementById('edit-btn').style.display = 'inline-block';
-        // Get the post from the prefetched items
         const post = prefetchedItems.find(item => item.id === id);
         if (post) {
             populateForm(post);
@@ -151,4 +158,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             });
     }
-})
+
+    prefetchItems();
+});
