@@ -44,30 +44,15 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
     }
 
-    function fetchPosts() {
-        if (prefetchedItems.length > 0) {
-            renderPosts(prefetchedItems);
-        } else {
-            fetchWithAuth(`${apiUrl}/all`)
-                .then(renderPosts)
-                .catch(error => console.error('Error fetching posts:', error));
-        }
-    }
-
     function renderPosts(posts) {
         postsContainer.innerHTML = posts.map(renderPost).join('') || '<p>No posts available</p>';
     }
 
     function prefetchItems() {
-        fetchWithAuth(`${apiUrl}/prefetch`)
-            .then(response => {
-                if (response && response.prefetchedItems) {
-                    prefetchedItems = response.prefetchedItems;
-                    console.log('Items prefetched successfully');
-                } else {
-                    prefetchedItems = [];
-                    console.log('No items to prefetch');
-                }
+        fetchWithAuth(`${apiUrl}/all`)
+            .then(items => {
+                prefetchedItems = items;
+                console.log('Items prefetched successfully');
             })
             .catch(error => {
                 console.error('Error prefetching items:', error);
@@ -88,13 +73,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(post)
             })
-                .then(() => {
+                .then(updatedItem => {
+                    if (currentEditId) {
+                        const index = prefetchedItems.findIndex(item => item.id === currentEditId);
+                        if (index !== -1) {
+                            prefetchedItems[index] = updatedItem;
+                        }
+                    } else {
+                        prefetchedItems.push(updatedItem);
+                    }
                     currentEditId = null;
                     form.reset();
                     document.getElementById('submit-btn').textContent = 'Add Post';
                     document.getElementById('edit-btn').style.display = 'none';
-                    prefetchItems();
-                    fetchPosts();
+                    renderPosts(prefetchedItems);
                 })
                 .catch(error => console.error('Error saving post:', error));
         };
@@ -121,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
         currentEditId = post.id;
         document.getElementById('submit-btn').textContent = 'Update Post';
         document.getElementById('edit-btn').style.display = 'inline-block';
+        form.author.readOnly = true;
     }
 
     const editBtn = document.getElementById('edit-btn');
@@ -130,6 +123,7 @@ document.addEventListener('DOMContentLoaded', function () {
             form.reset();
             document.getElementById('submit-btn').textContent = 'Add Post';
             this.style.display = 'none';
+            form.author.readOnly = false;
         });
     }
 
