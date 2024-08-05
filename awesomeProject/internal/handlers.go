@@ -2,15 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/db"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/context"
 	"gorm.io/gorm"
-	"log"
 	"net/http"
-	"strconv"
 )
 
 var DB *gorm.DB
@@ -22,255 +20,107 @@ type ItemResponse struct {
 	Content  string    `json:"content"`
 }
 
+type AuthenticatedRequest struct {
+	*http.Request
+	User model.User
+}
+
 func InitHandlers(db *gorm.DB) {
 	DB = db
 }
 
-func CreateItemHandler(w http.ResponseWriter, r *http.Request) {
-	var itemRequest struct {
-		Blogname string `json:"blogname"`
-		Author   string `json:"author"`
-		Content  string `json:"content"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&itemRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	item := model.Item{
-		ID:       uuid.New(),
-		Blogname: itemRequest.Blogname,
-		Author:   itemRequest.Author,
-		Content:  itemRequest.Content,
-	}
-
-	if err := DB.Create(&item).Error; err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := ItemResponse{
-		ID:       item.ID,
-		Blogname: item.Blogname,
-		Author:   item.Author,
-		Content:  item.Content,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
-}
-
-func GetAllItemsHandler(w http.ResponseWriter, r *http.Request) {
-	var items []model.Item
-	if err := DB.Find(&items).Error; err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var responses []ItemResponse
-	for _, item := range items {
-		responses = append(responses, ItemResponse{
-			ID:       item.ID,
-			Blogname: item.Blogname,
-			Author:   item.Author,
-			Content:  item.Content,
-		})
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responses)
-}
-
-func UpdateItemHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	idStr := ps.ByName("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid UUID", http.StatusBadRequest)
-		return
-	}
-
-	var existingItem model.Item
-	if err := DB.First(&existingItem, id).Error; err != nil {
-		http.Error(w, "Item not found", http.StatusNotFound)
-		return
-	}
-
-	var itemRequest struct {
-		Blogname string `json:"blogname"`
-		Content  string `json:"content"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&itemRequest); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	existingItem.Blogname = itemRequest.Blogname
-	existingItem.Content = itemRequest.Content
-
-	if err := DB.Save(&existingItem).Error; err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := ItemResponse{
-		ID:       existingItem.ID,
-		Blogname: existingItem.Blogname,
-		Author:   existingItem.Author,
-		Content:  existingItem.Content,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	idStr := ps.ByName("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid UUID", http.StatusBadRequest)
-		return
-	}
-
-	if err := db.DeleteItemByID(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Item deleted successfully"))
-}
-
-func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request) {
-	if err := DB.Where("1 = 1").Delete(&model.Item{}).Error; err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("All items deleted successfully"))
-}
-
-func CreateUser(username string, password string) error {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-
-	user := model.User{
-		ID:       uuid.New(),
-		Username: username,
-		Password: string(hashedPassword),
-		IsAdmin:  username == "admin",
-	}
-
-	return DB.Create(&user).Error
-}
-
-func LoginHandler(w http.ResponseWriter, r *http.Request) {
-	var loginRequest struct {
+func LoginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
-		//UserID   string `json:"user_id"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&loginRequest); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	var user model.User
-	if err := DB.Where("username = ?", loginRequest.Username).First(&user).Error; err != nil {
+	if err := DB.Where("username = ?", credentials.Username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			if err := CreateUser(loginRequest.Username, loginRequest.Password); err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"error": "Failed to create user"})
-				return
-			}
-			DB.Where("username = ?", loginRequest.Username).First(&user)
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		} else {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Database error"})
-			return
+			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginRequest.Password)); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid credentials"})
 		return
 	}
 
-	isAdmin := user.IsAdmin
-	redirectURL := "/static/user/user_view.html"
-	if isAdmin {
-		redirectURL = "/static/admin/admin_view.html"
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
-	fullRedirectURL := "http://localhost:8080" + redirectURL
+	sessionID, sessionToken := SetSessionCookie(w, user.ID)
+
+	user.SessionID = sessionID
+	if err := DB.Save(&user).Error; err != nil {
+		http.Error(w, "Error saving session", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	response := map[string]interface{}{
-		"success":     true,
-		"isAdmin":     isAdmin,
-		"redirectURL": fullRedirectURL,
-		"userID":      user.ID.String(),
-	}
-	json.NewEncoder(w).Encode(response)
-	log.Printf("Login response sent: %+v", response)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":       true,
+		"message":       "Logged in successfully",
+		"isAdmin":       user.IsAdmin,
+		"session_id":    sessionID,
+		"session_token": sessionToken,
+	})
 }
 
-func AuthMiddleware(adminRequired bool) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			isAdmin, _ := strconv.ParseBool(r.Header.Get("isAdmin"))
-			if adminRequired && !isAdmin {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-			next.ServeHTTP(w, r)
-		}
-	}
-}
-
-func PrefetchItemsHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userID")
-	if userID == "" {
-		http.Error(w, "UserID is required", http.StatusBadRequest)
-		return
-	}
+func GetAllItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
 
 	var items []model.Item
 	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
-		log.Printf("Error fetching items: %v", err)
 		http.Error(w, "Error fetching items", http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string][]model.Item{
-		"prefetchedItems": items,
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
+}
+
+func CreateItemHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+
+	var item model.Item
+	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	item.ID = uuid.New()
+	item.UserID = userID
+
+	if err := DB.Create(&item).Error; err != nil {
+		http.Error(w, "Error creating item", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(item)
 }
 
 func GetItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	idStr := ps.ByName("id")
-	id, err := uuid.Parse(idStr)
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+	itemID, err := uuid.Parse(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid UUID", http.StatusBadRequest)
+		http.Error(w, "Invalid item ID", http.StatusBadRequest)
 		return
 	}
 
 	var item model.Item
-	if err := DB.First(&item, id).Error; err != nil {
+	if err := DB.Where("id = ? AND user_id = ?", itemID, userID).First(&item).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, "Item not found", http.StatusNotFound)
 		} else {
@@ -279,34 +129,136 @@ func GetItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 		return
 	}
 
-	response := ItemResponse{
-		ID:       item.ID,
-		Blogname: item.Blogname,
-		Author:   item.Author,
-		Content:  item.Content,
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(item)
 }
 
-func ValidateSessionHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userID")
-	if userID == "" {
-		http.Error(w, "UserID is required", http.StatusBadRequest)
+func UpdateItemHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+	itemID, err := uuid.Parse(ps.ByName("id"))
+	if err != nil {
+		http.Error(w, "Invalid item ID", http.StatusBadRequest)
 		return
 	}
 
-	var user model.User
-	if err := DB.First(&user, "id = ?", userID).Error; err != nil {
+	var updatedItem model.Item
+	if err := json.NewDecoder(r.Body).Decode(&updatedItem); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var existingItem model.Item
+	if err := DB.Where("id = ? AND user_id = ?", itemID, userID).First(&existingItem).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			http.Error(w, "Invalid session", http.StatusUnauthorized)
+			http.Error(w, "Item not found", http.StatusNotFound)
 		} else {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 		}
 		return
 	}
 
+	existingItem.Blogname = updatedItem.Blogname
+	existingItem.Author = updatedItem.Author
+	existingItem.Content = updatedItem.Content
+
+	if err := DB.Save(&existingItem).Error; err != nil {
+		http.Error(w, "Error updating item", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existingItem)
+}
+
+func DeleteItemByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+	itemID, err := uuid.Parse(ps.ByName("id"))
+	if err != nil {
+		http.Error(w, "Invalid item ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := DB.Where("id = ? AND user_id = ?", itemID, userID).Delete(&model.Item{}).Error; err != nil {
+		http.Error(w, "Error deleting item", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func DeleteAllItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+
+	if err := DB.Where("user_id = ?", userID).Delete(&model.Item{}).Error; err != nil {
+		http.Error(w, "Error deleting items", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func PrefetchItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
+	userID := authReq.User.ID
+
+	var items []model.Item
+	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
+		http.Error(w, "Error fetching items", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"prefetchedItems": items,
+	})
+}
+
+func ValidateSessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	userID, err := GetUserIDFromSession(r)
+	if err != nil {
+		http.Error(w, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	var user model.User
+	if err := DB.First(&user, userID).Error; err != nil {
+		http.Error(w, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"valid": true})
+}
+
+func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handle {
+	return func(next httprouter.Handle) httprouter.Handle {
+		return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			sessionID, err := GetSessionIDFromCookie(r)
+			if err != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			var user model.User
+			if err := DB.Where("session_id = ?", sessionID).First(&user).Error; err != nil {
+				http.Error(w, "Invalid session", http.StatusUnauthorized)
+				return
+			}
+
+			if adminRequired && !user.IsAdmin {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			authReq := &AuthenticatedRequest{
+				Request: r,
+				User:    user,
+			}
+			ctx := context.WithValue(r.Context(), "authRequest", authReq)
+			next(w, r.WithContext(ctx), ps)
+		}
+	}
 }

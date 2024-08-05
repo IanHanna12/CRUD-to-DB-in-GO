@@ -22,7 +22,7 @@ func InitDB() *gorm.DB {
 		log.Fatalf("Error opening database: %v", err)
 	}
 
-	err = db.AutoMigrate(&model.Item{})
+	err = db.AutoMigrate(&model.Item{}, &model.User{})
 	if err != nil {
 		log.Fatalf("Error migrating database: %v", err)
 	}

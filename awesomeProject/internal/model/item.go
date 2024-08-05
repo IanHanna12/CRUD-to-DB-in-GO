@@ -13,10 +13,12 @@ type Item struct {
 }
 
 type User struct {
-	ID       uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
-	Username string    `json:"username" gorm:"column:username"`
-	Password string    `json:"password" gorm:"column:password"`
-	IsAdmin  bool      `json:"isAdmin" gorm:"column:isAdmin"`
+	ID        uuid.UUID `json:"id,omitempty" gorm:"type:char(36);primaryKey"`
+	Username  string    `json:"username" gorm:"column:username"`
+	Password  string    `json:"password" gorm:"column:password"`
+	IsAdmin   bool      `json:"isAdmin" gorm:"column:isAdmin"`
+	Session   string    `json:"session" gorm:"column:session"`
+	SessionID string    `json:"session_id" gorm:"column:session_id"`
 }
 type ItemResponse struct {
 	ID       uuid.UUID `json:"id"`

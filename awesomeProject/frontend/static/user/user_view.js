@@ -1,22 +1,26 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('post-form');
     const postsContainer = document.getElementById('posts-container');
     const apiUrl = 'http://localhost:8080/items';
     let currentEditId = null;
+    let prefetchedItems = [];
 
     const viewByIdBtn = document.getElementById('view-by-id-btn');
-
     viewByIdBtn.addEventListener('click', viewPostById);
 
     function viewPostById() {
         const id = document.getElementById('post-id-input').value;
         if (id) {
-            fetchWithAuth(`${apiUrl}/single/${id}`)
-                .then(post => {
-                    postsContainer.innerHTML = renderPost(post);
-                })
-                .catch(error => console.error('Error fetching post:', error));
+            const post = prefetchedItems.find(item => item.id === id);
+            if (post) {
+                postsContainer.innerHTML = renderPost(post);
+            } else {
+                fetchWithAuth(`${apiUrl}/single/${id}`)
+                    .then(post => {
+                        postsContainer.innerHTML = renderPost(post);
+                    })
+                    .catch(error => console.error('Error fetching post:', error));
+            }
         }
     }
 
@@ -32,9 +36,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchPosts() {
-        fetchWithAuth(`${apiUrl}/all`)
-            .then(renderPosts)
-            .catch(error => console.error('Error fetching posts:', error));
+        if (prefetchedItems.length > 0) {
+            renderPosts(prefetchedItems);
+        } else {
+            fetchWithAuth(`${apiUrl}/all`)
+                .then(renderPosts)
+                .catch(error => console.error('Error fetching posts:', error));
+        }
     }
 
     function renderPosts(posts) {
@@ -44,16 +52,23 @@ document.addEventListener('DOMContentLoaded', function() {
     function prefetchItems() {
         fetchWithAuth(`${apiUrl}/prefetch`)
             .then(response => {
-                if (response !== null && response.length > 0) {
-                    console.log('Prefetched items:', response);
-                    renderPosts(response);
+                if (response && response.prefetchedItems) {
+                    prefetchedItems = response.prefetchedItems;
+                    console.log('Items prefetched successfully');
+                } else {
+                    prefetchedItems = [];
+                    console.log('No items to prefetch');
                 }
             })
-            .catch(error => console.error('Error prefetching items:', error));
+            .catch(error => {
+                console.error('Error prefetching items:', error);
+                prefetchedItems = [];
+            });
     }
 
+
     if (form) {
-        form.onsubmit = function(e) {
+        form.onsubmit = function (e) {
             e.preventDefault();
             const post = {
                 blogname: form.blogname.value,
@@ -62,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             fetchWithAuth(currentEditId ? `${apiUrl}/update/${currentEditId}` : `${apiUrl}/create`, {
                 method: currentEditId ? 'PUT' : 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(post)
             })
                 .then(() => {
@@ -70,31 +85,40 @@ document.addEventListener('DOMContentLoaded', function() {
                     form.reset();
                     document.getElementById('submit-btn').textContent = 'Add Post';
                     document.getElementById('edit-btn').style.display = 'none';
+                    prefetchItems();
                     fetchPosts();
                 })
                 .catch(error => console.error('Error saving post:', error));
         };
     }
 
-    window.editPost = function(id) {
+    window.editPost = function (id) {
         currentEditId = id;
         document.getElementById('submit-btn').textContent = 'Update Post';
         document.getElementById('edit-btn').style.display = 'inline-block';
-        fetchWithAuth(`${apiUrl}/single/${id}`)
-            .then(post => {
-                form.blogname.value = post.blogname;
-                form.author.value = post.author;
-                form.content.value = post.content;
-                currentEditId = id;
-                document.getElementById('submit-btn').textContent = 'Update Post';
-                document.getElementById('edit-btn').style.display = 'inline-block';
-            })
-            .catch(error => console.error('Error editing post:', error));
+        // Get the post from the prefetched items
+        const post = prefetchedItems.find(item => item.id === id);
+        if (post) {
+            populateForm(post);
+        } else {
+            fetchWithAuth(`${apiUrl}/single/${id}`)
+                .then(populateForm)
+                .catch(error => console.error('Error editing post:', error));
+        }
     };
+
+    function populateForm(post) {
+        form.blogname.value = post.blogname;
+        form.author.value = post.author;
+        form.content.value = post.content;
+        currentEditId = post.id;
+        document.getElementById('submit-btn').textContent = 'Update Post';
+        document.getElementById('edit-btn').style.display = 'inline-block';
+    }
 
     const editBtn = document.getElementById('edit-btn');
     if (editBtn) {
-        editBtn.addEventListener('click', function() {
+        editBtn.addEventListener('click', function () {
             currentEditId = null;
             form.reset();
             document.getElementById('submit-btn').textContent = 'Add Post';
@@ -102,21 +126,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function getSessionTokenFromCookie() {
+        const cookies = document.cookie.split('; ');
+        for (let cookie of cookies) {
+            if (cookie.startsWith('session_token=')) {
+                return cookie.split('=')[1];
+            }
+        }
+        return null;
+    }
+
     function fetchWithAuth(url, options = {}) {
+        const sessionToken = getSessionTokenFromCookie();
         options.headers = {
             ...options.headers,
-            'isAdmin': isAdmin.toString()
+            'Authorization': `Bearer ${sessionToken}`
         };
+        options.credentials = 'include';
         return fetch(url, options)
             .then(response => {
                 if (!response.ok) {
-                    return response.text().then(text => {
-                        throw new Error(text || `HTTP error! status: ${response.status}`);
-                    });
+                    throw new Error('HTTP error! status: ' + response.status);
                 }
                 return response.json();
             });
     }
-
-    prefetchItems();
-});
+})

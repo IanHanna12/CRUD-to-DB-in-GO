@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.querySelector('form');
 
@@ -9,25 +10,37 @@ document.addEventListener('DOMContentLoaded', function () {
 
             fetch('http://localhost:8080/login', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({username, password}),
             })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP status ' + response.status);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    console.log('Login response:', data);
                     if (data.success) {
-                        localStorage.setItem('isAdmin', data.isAdmin);
-                        console.log('Redirecting to:', data.redirectURL);
-                        window.location.href = data.redirectURL;
+                        console.log('Login successful:', data);
+                        localStorage.setItem('sessionToken', data.session_token);
+
+                        if (data.isAdmin) {
+                            window.location.href = 'http://localhost:8080/static/admin/admin_view.html';
+                        } else {
+                            window.location.href = 'http://localhost:8080/static/user/user_view.html';
+
+                        }
                     } else {
+                        console.error('Login failed:', data.error || 'Unknown error');
                         alert('Login failed: ' + (data.error || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('Login error:', error);
-                    alert('An error occurred during login:' + error);
+                    alert('An error occurred during login: ' + error.message);
                 });
         });
     }
