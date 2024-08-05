@@ -217,7 +217,7 @@ func PrefetchItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.P
 }
 
 func ValidateSessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID, err := GetUserIDFromSession(r)
+	userID, err := GetUserIDFromSessionCookie(r)
 	if err != nil {
 		http.Error(w, "Invalid session", http.StatusUnauthorized)
 		return

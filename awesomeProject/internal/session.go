@@ -23,15 +23,15 @@ func SetSessionCookie(w http.ResponseWriter, userID uuid.UUID) (string, string) 
 	return sessionID, sessionToken
 }
 
-func GetUserIDFromSession(r *http.Request) (uuid.UUID, error) {
+func GetUserIDFromSessionCookie(r *http.Request) (uuid.UUID, error) {
 	cookie, err := r.Cookie("session_id")
 	if err != nil {
 		return uuid.Nil, err
 	}
-	return retrieveUserIDFromSessionStorage(cookie.Value)
+	return ParseSessionIDtoUserID(cookie.Value)
 }
 
-func retrieveUserIDFromSessionStorage(sessionID string) (uuid.UUID, error) {
+func ParseSessionIDtoUserID(sessionID string) (uuid.UUID, error) {
 
 	userID, err := uuid.Parse(sessionID)
 	if err != nil {
