@@ -1,55 +1,23 @@
-# Authentication, Session Management, and Route Security
-DEPRECATED
-## Authentication
+# Authentication 
 
-~~~~~~The system uses a username and password-based authentication mechanism. Passwords are securely hashed using bcrypt before storage in the database.
+## Login Process
+1. User submits credentials (username and password) to the `/login` endpoint.
+2. Server validates credentials against the database.
+3. If valid, a new session is created:
+    - `sessionID` and `sessionToken` are generated.
+    - `sessionID` is stored in the user's database record.
+    - `sessionToken` is set as a cookie in the response.
 
-### User Creation
-- New users can be created through the `/login` endpoint.
-- The `CreateUser` function handles user creation, setting the `IsAdmin` field to 0 for admins and 1 for regular users.
+## Authenticated Requests
+1. Client includes the `sessionToken` in the `Authorization` header of each request.
+2. Server extracts the token from the `Authorization` header.
+3. The `AuthMiddleware` validates the session:
+    - Retrieves the user record using the `sessionID`.
+    - Checks user permissions if admin access is required.
+4. If valid, the request proceeds to the handler.
 
-### Login Process
-1. Users submit credentials to the `/login` endpoint.
-2. The system checks if the user exists:
-    - If not, a new user is created.
-    - If yes, the password is verified against the stored hash.
-3. Upon successful authentication, the isAdmin (bool) flag is returned in header and used for all subsequent requests.
+## Session Management
+- Sessions are stored in the database, linked to user records.
+- The `sessionToken` in the cookie is used to authenticate subsequent requests.
+- Sessions expire after a set time period 
 
-
-
-
-## Route Security
-
-Routes are secured using middleware functions that check for valid isAdmin status 
-
-### AuthMiddleware
-- Verifies the presence of a valid admin status in the request header.
-
-- For admin-only routes, it verifies the user's admin status and allows the request to proceed if the user is an admin, else blocked.
-
-### Route Protection
-
-- Authenticated routes: Require valid login credentials and login.
-- Admin routes: Require valid admin status to proceed.
-
-### Implementation
-- The `AuthMiddleware` function is used as a wrapper for protected routes in routing.
-
-## Security 
-- Passwords are never stored in plain text.
-- Passwords are hashed using bcrypt before storage in the database.
-- Admin status is determined by the `IsAdmin` field in the sent request header.
-- All routes require valid login credentials and login.
-- All admin routes require valid admin status to proceed.
-
-
-
--- 31.07.2024
-user view works as intended
-
-user_view: Post blog and edit the posts name and content works (editing author name of blog is blocked,
-view by id works)
-
-
-TODO: Test admin view, prefetch by userID to get all blogs of a user but 
-                       restrict to only the user's own blogs
