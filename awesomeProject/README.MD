@@ -127,3 +127,8 @@
     - Server-side filtering ensures users can only access their own data.
 - Secure Session Management:
     - Session tokens stored as UUIDs in HTTP-only cookies.
+
+  - Session tokens: validate request access based on session token.
+  - Session tokens: stored in database with user ID association.
+  - sessionID: UUID for unique session identification.
+  - 
