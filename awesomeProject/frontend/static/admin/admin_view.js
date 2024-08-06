@@ -145,9 +145,14 @@ document.addEventListener('DOMContentLoaded', function() {
     window.deletePost = function(id) {
         fetchWithAuth(`${apiUrl}/delete/${id}`, {
             method: 'DELETE'
-        }).then(() => {
-            prefetchedItems = prefetchedItems.filter(item => item.id !== id);
-            renderAllPosts();
+        }).then((response) => {
+            if (response.status === 200 || response.status === 204 || response === "" || response === "OK") {
+                prefetchedItems = prefetchedItems.filter(item => item.id !== id);
+                renderAllPosts();
+                console.log('Post deleted successfully');
+            } else {
+                console.error('Unexpected response:', response);
+            }
         }).catch(error => console.error('Error deleting post:', error));
     };
 
@@ -185,7 +190,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!response.ok) {
                     throw new Error('HTTP error! status: ' + response.status);
                 }
-                return response.json();
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    return response.json();
+                } else {
+                    return response.text();
+                }
             });
     }
 
