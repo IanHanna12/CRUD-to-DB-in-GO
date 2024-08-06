@@ -29,9 +29,10 @@ func main() {
 	router.GET("/items/prefetch", handlers.AuthMiddleware(false)(handlers.PrefetchItemsHandler))
 
 	// Admin routes (authenticated and admin-only routes)
-	router.GET("/items/prefetch/all", handlers.AuthMiddleware(true)(handlers.PrefetchAllItemsHandlerForAdmin))
+	router.GET("/items/prefetch/all", handlers.AuthMiddleware(true)(handlers.PrefetchAllItemsHandler))
 	router.DELETE("/items/all", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
 	router.DELETE("/items/all-prefetch/delete", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
+	router.PUT("/items/admin/update/:id", handlers.AuthMiddleware(true)(handlers.UpdateItemHandlerForAdmin))
 
 	serverConf := &http.Server{
 		Handler:      GlobalCORS(router),

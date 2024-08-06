@@ -91,6 +91,54 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 	})
 }
 
+func ValidateSessionHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+	userID, err := GetUserIDFromSessionCookie(request)
+	if err != nil {
+		http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	var user model.User
+	if err := DB.First(&user, userID).Error; err != nil {
+		http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	responseWriter.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(responseWriter).Encode(map[string]bool{"valid": true})
+}
+
+func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handle {
+	return func(next httprouter.Handle) httprouter.Handle {
+		return func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
+			sessionID, err := GetSessionIDFromCookie(request)
+			if err != nil {
+				http.Error(responseWriter, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			var user model.User
+			if err := DB.Where("session_id = ?", sessionID).First(&user).Error; err != nil {
+				http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
+				return
+			}
+
+			if adminRequired && !user.IsAdmin {
+				http.Error(responseWriter, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			authReq := &AuthenticatedRequest{
+				Request: request,
+				User:    user,
+			}
+			// Add the auth request to the context, pass it to the next handler, and then move it along
+			authenticatedContext := context.WithValue(request.Context(), "authRequest", authReq)
+			next(responseWriter, request.WithContext(authenticatedContext), params)
+		}
+	}
+}
+
 func GetAllItemsHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
 	userID := authReq.User.ID
@@ -189,6 +237,42 @@ func UpdateItemHandler(responseWriter http.ResponseWriter, request *http.Request
 	json.NewEncoder(responseWriter).Encode(existingItem)
 }
 
+func UpdateItemHandlerForAdmin(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	itemID, err := uuid.Parse(params.ByName("id"))
+	if err != nil {
+		http.Error(responseWriter, "Invalid item ID", http.StatusBadRequest)
+		return
+	}
+
+	var updatedItem model.Item
+	if err := json.NewDecoder(request.Body).Decode(&updatedItem); err != nil {
+		http.Error(responseWriter, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var existingItem model.Item
+	if err := DB.First(&existingItem, itemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			http.Error(responseWriter, "Item not found", http.StatusNotFound)
+		} else {
+			http.Error(responseWriter, "Database error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	existingItem.Blogname = updatedItem.Blogname
+	existingItem.Author = updatedItem.Author
+	existingItem.Content = updatedItem.Content
+
+	if err := DB.Save(&existingItem).Error; err != nil {
+		http.Error(responseWriter, "Error updating item", http.StatusInternalServerError)
+		return
+	}
+
+	responseWriter.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(responseWriter).Encode(existingItem)
+}
+
 func DeleteItemByIDHandler(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
 	userID := authReq.User.ID
@@ -234,8 +318,7 @@ func PrefetchItemsHandler(responseWriter http.ResponseWriter, request *http.Requ
 		"prefetchedItems": items,
 	})
 }
-
-func PrefetchAllItemsHandlerForAdmin(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+func PrefetchAllItemsHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
 		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
@@ -246,52 +329,4 @@ func PrefetchAllItemsHandlerForAdmin(responseWriter http.ResponseWriter, request
 	json.NewEncoder(responseWriter).Encode(map[string]interface{}{
 		"prefetchedItems": items,
 	})
-}
-
-func ValidateSessionHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
-	userID, err := GetUserIDFromSessionCookie(request)
-	if err != nil {
-		http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
-		return
-	}
-
-	var user model.User
-	if err := DB.First(&user, userID).Error; err != nil {
-		http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
-		return
-	}
-
-	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(map[string]bool{"valid": true})
-}
-
-func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handle {
-	return func(next httprouter.Handle) httprouter.Handle {
-		return func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
-			sessionID, err := GetSessionIDFromCookie(request)
-			if err != nil {
-				http.Error(responseWriter, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			var user model.User
-			if err := DB.Where("session_id = ?", sessionID).First(&user).Error; err != nil {
-				http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
-				return
-			}
-
-			if adminRequired && !user.IsAdmin {
-				http.Error(responseWriter, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			authReq := &AuthenticatedRequest{
-				Request: request,
-				User:    user,
-			}
-			// Add the auth request to the context, pass it to the next handler, and then move it along
-			authenticatedContext := context.WithValue(request.Context(), "authRequest", authReq)
-			next(responseWriter, request.WithContext(authenticatedContext), params)
-		}
-	}
 }

@@ -26,10 +26,19 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 fetchWithAuth(`${apiUrl}/single/${id}`)
                     .then(post => {
-                        postsContainer.innerHTML = renderPost(post);
+                        if (post) {
+                            postsContainer.innerHTML = renderPost(post);
+                        } else {
+                            postsContainer.innerHTML = '<p>Post not found</p>';
+                        }
                     })
-                    .catch(error => console.error('Error fetching post:', error));
+                    .catch(error => {
+                        console.error('Error fetching post:', error);
+                        postsContainer.innerHTML = '<p>Error fetching post</p>';
+                    });
             }
+        } else {
+            postsContainer.innerHTML = '<p>Please enter a valid post ID</p>';
         }
     }
 
@@ -79,14 +88,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (index !== -1) {
                             prefetchedItems[index] = updatedItem;
                         }
+                        postsContainer.innerHTML = renderPost(updatedItem);
                     } else {
                         prefetchedItems.push(updatedItem);
+                        postsContainer.innerHTML = renderPost(updatedItem);
                     }
                     currentEditId = null;
                     form.reset();
                     document.getElementById('submit-btn').textContent = 'Add Post';
                     document.getElementById('edit-btn').style.display = 'none';
-                    renderPosts(prefetchedItems);
                 })
                 .catch(error => console.error('Error saving post:', error));
         };
