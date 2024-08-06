@@ -16,16 +16,22 @@ func main() {
 	router := httprouter.New()
 	router.ServeFiles("/static/*filepath", http.Dir("./frontend/static/"))
 
+	// Public routes
 	router.POST("/login", handlers.LoginHandler)
+	router.GET("/validate-session", handlers.ValidateSessionHandler)
+
+	// User routes (authenticated)
 	router.GET("/items/all", handlers.AuthMiddleware(false)(handlers.GetAllItemsHandler))
-	router.POST("/items/create", handlers.AuthMiddleware(false)(handlers.CreateItemHandler))
 	router.GET("/items/single/:id", handlers.AuthMiddleware(false)(handlers.GetItemByIDHandler))
+	router.POST("/items/create", handlers.AuthMiddleware(false)(handlers.CreateItemHandler))
 	router.PUT("/items/update/:id", handlers.AuthMiddleware(false)(handlers.UpdateItemHandler))
 	router.DELETE("/items/delete/:id", handlers.AuthMiddleware(false)(handlers.DeleteItemByIDHandler))
-	router.DELETE("/items/all", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
 	router.GET("/items/prefetch", handlers.AuthMiddleware(false)(handlers.PrefetchItemsHandler))
+
+	// Admin routes (authenticated and admin-only routes)
+	router.GET("/items/prefetch/all", handlers.AuthMiddleware(true)(handlers.PrefetchAllItemsHandlerForAdmin))
+	router.DELETE("/items/all", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
 	router.DELETE("/items/all-prefetch/delete", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
-	router.GET("/validate-session", handlers.ValidateSessionHandler)
 
 	serverConf := &http.Server{
 		Handler:      GlobalCORS(router),

@@ -15,6 +15,7 @@
             --accent-color: #e74c3c;
             --success-color: #2ecc71;
         }
+
         body {
             font-family: 'Inter', sans-serif;
             line-height: 1.8;
@@ -23,11 +24,13 @@
             margin: 0;
             padding: 0;
         }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
+
         h1 {
             background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
             -webkit-background-clip: text;
@@ -36,14 +39,16 @@
             font-weight: 600;
             padding: 20px 0;
         }
+
         form, .view-controls {
             background-color: var(--card-background);
             padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
             margin-bottom: 30px;
             border-top: 4px solid var(--primary-color);
         }
+
         input[type="text"], textarea {
             width: 100%;
             padding: 12px;
@@ -52,6 +57,7 @@
             border-radius: 4px;
             font-size: 16px;
         }
+
         button {
             background-color: var(--primary-color);
             color: white;
@@ -64,65 +70,80 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
         button:hover {
             background-color: var(--secondary-color);
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
+
         .blog-post {
             background-color: var(--card-background);
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 25px;
             transition: all 0.3s ease;
             border-left: 4px solid var(--accent-color);
         }
+
         .blog-post:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
         }
+
         .blog-post h3 {
             margin-top: 0;
             color: var(--secondary-color);
             font-weight: 600;
             font-size: 1.5em;
         }
+
         .author {
             font-style: italic;
             color: #777;
         }
+
         .content {
             margin-top: 15px;
         }
+
         .actions {
             margin-top: 20px;
         }
+
         .edit-btn, .delete-btn {
             padding: 8px 15px;
             margin-right: 10px;
             font-size: 14px;
         }
+
         .edit-btn {
             background-color: var(--accent-color);
         }
+
         .delete-btn {
             background-color: var(--accent-color);
         }
+
         #delete-all-btn {
             background-color: var(--accent-color);
             margin-top: 30px;
         }
+
         .view-controls {
             margin-bottom: 20px;
         }
+
         #post-id-input {
             width: 200px;
             margin-right: 10px;
         }
+
         #view-by-id-btn, #view-all-btn {
             background-color: var(--secondary-color);
         }
+
         #edit-btn {
             background-color: var(--accent-color);
         }

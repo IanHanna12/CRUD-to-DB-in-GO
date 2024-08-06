@@ -192,6 +192,7 @@ func UpdateItemHandler(responseWriter http.ResponseWriter, request *http.Request
 func DeleteItemByIDHandler(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
 	userID := authReq.User.ID
+	//parse item id and check if it belongs to the user
 	itemID, err := uuid.Parse(params.ByName("id"))
 	if err != nil {
 		http.Error(responseWriter, "Invalid item ID", http.StatusBadRequest)
@@ -224,6 +225,19 @@ func PrefetchItemsHandler(responseWriter http.ResponseWriter, request *http.Requ
 
 	var items []model.Item
 	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
+		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
+		return
+	}
+
+	responseWriter.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(responseWriter).Encode(map[string]interface{}{
+		"prefetchedItems": items,
+	})
+}
+
+func PrefetchAllItemsHandlerForAdmin(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+	var items []model.Item
+	if err := DB.Find(&items).Error; err != nil {
 		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
 		return
 	}
