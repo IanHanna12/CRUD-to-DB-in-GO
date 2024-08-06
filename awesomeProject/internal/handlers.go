@@ -275,7 +275,7 @@ func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handl
 				Request: request,
 				User:    user,
 			}
-			// Add the auth request to the context, pass it to the next handler, and then remove it along
+			// Add the auth request to the context, pass it to the next handler, and then move it along
 			authenticatedContext := context.WithValue(request.Context(), "authRequest", authReq)
 			next(responseWriter, request.WithContext(authenticatedContext), params)
 		}

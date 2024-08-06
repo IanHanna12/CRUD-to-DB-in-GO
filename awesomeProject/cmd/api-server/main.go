@@ -24,6 +24,7 @@ func main() {
 	router.DELETE("/items/delete/:id", handlers.AuthMiddleware(false)(handlers.DeleteItemByIDHandler))
 	router.DELETE("/items/all", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
 	router.GET("/items/prefetch", handlers.AuthMiddleware(false)(handlers.PrefetchItemsHandler))
+	router.DELETE("/items/all-prefetch/delete", handlers.AuthMiddleware(true)(handlers.DeleteAllItemsHandler))
 	router.GET("/validate-session", handlers.ValidateSessionHandler)
 
 	serverConf := &http.Server{
