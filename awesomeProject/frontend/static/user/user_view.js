@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function getSessionTokenFromCookie() {
         const cookies = document.cookie.split('; ');
         for (let cookie of cookies) {
-            if (cookie.startsWith('session_token=')) {
+            if (cookie.startsWith('AuthToken=')) {
                 return cookie.split('=')[1];
             }
         }
@@ -148,10 +148,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function fetchWithAuth(url, options = {}) {
-        const sessionToken = getSessionTokenFromCookie();
+        const AuthToken = getSessionTokenFromCookie();
         options.headers = {
             ...options.headers,
-            'Authorization': `Bearer ${sessionToken}`
+            'Authorization': `Bearer ${AuthToken}`
         };
         options.credentials = 'include';
         return fetch(url, options)
