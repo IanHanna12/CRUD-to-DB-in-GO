@@ -73,7 +73,7 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 		}
 	}
 
-	sessionID, sessionToken := SetSessionCookie(responseWriter, user.ID)
+	sessionID, AuthToken := SetSessionCookie(responseWriter, user.ID)
 
 	user.SessionID = sessionID
 	if err := DB.Save(&user).Error; err != nil {
@@ -83,11 +83,11 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 
 	responseWriter.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(responseWriter).Encode(map[string]interface{}{
-		"success":       true,
-		"message":       "Logged in successfully",
-		"isAdmin":       user.IsAdmin,
-		"session_id":    sessionID,
-		"session_token": sessionToken,
+		"success":    true,
+		"message":    "Logged in successfully",
+		"isAdmin":    user.IsAdmin,
+		"session_id": sessionID,
+		"authtoken":  AuthToken,
 	})
 }
 
@@ -109,6 +109,7 @@ func ValidateSessionHandler(responseWriter http.ResponseWriter, request *http.Re
 }
 
 func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handle {
+	// with context: request is authenticated
 	return func(next httprouter.Handle) httprouter.Handle {
 		return func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
 			sessionID, err := GetSessionIDFromCookie(request)
@@ -139,18 +140,22 @@ func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handl
 	}
 }
 
-func GetAllItemsHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
-	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
-	userID := authReq.User.ID
+func GetAllItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	authReq := r.Context().Value("authRequest").(*AuthenticatedRequest)
 
-	var items []model.Item
-	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
-		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
+	if !authReq.User.IsAdmin {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(items)
+	var items []model.Item
+	if err := DB.Find(&items).Error; err != nil {
+		http.Error(w, "Error fetching items", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
 }
 
 func CreateItemHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {

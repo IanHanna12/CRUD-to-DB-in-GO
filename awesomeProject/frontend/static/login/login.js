@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (data.success) {
                         console.log('Login successful:', data);
 
-                        localStorage.setItem('sessionToken', data.session_token);
+                        localStorage.setItem('AuthToken', data.AuthToken);
                         localStorage.setItem('username', username);
 
                         if (data.isAdmin) {
