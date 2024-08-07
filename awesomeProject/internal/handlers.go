@@ -2,16 +2,21 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/IanHanna/CRUD-to-DB-in-GO/internal/model"
+	"github.com/go-redis/redis/v8"
+	_ "github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/context"
 	"gorm.io/gorm"
 	"net/http"
+	"time"
 )
 
 var DB *gorm.DB
+var RedisClient *redis.Client
 
 type ItemResponse struct {
 	ID       uuid.UUID `json:"id"`
@@ -27,6 +32,9 @@ type AuthenticatedRequest struct {
 
 func InitHandlers(db *gorm.DB) {
 	DB = db
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
 }
 
 func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
@@ -43,7 +51,6 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 	var user model.User
 	if err := DB.Where("username = ?", credentials.Username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// Create a new user
 			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(credentials.Password), bcrypt.DefaultCost)
 			if err != nil {
 				http.Error(responseWriter, "Error creating user", http.StatusInternalServerError)
@@ -54,8 +61,7 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 				Username:  credentials.Username,
 				Password:  string(hashedPassword),
 				SessionID: "",
-				// if username is admin --> isAdmin = true
-				IsAdmin: credentials.Username == "admin",
+				IsAdmin:   credentials.Username == "admin",
 			}
 			if err := DB.Create(&user).Error; err != nil {
 				http.Error(responseWriter, "Error creating user", http.StatusInternalServerError)
@@ -66,7 +72,6 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 			return
 		}
 	} else {
-		// Verify password for existing user
 		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password)); err != nil {
 			http.Error(responseWriter, "Invalid credentials", http.StatusUnauthorized)
 			return
@@ -91,10 +96,19 @@ func LoginHandler(responseWriter http.ResponseWriter, request *http.Request, _ h
 	})
 }
 
+// validate session by comparing sessionID with userID retrieved from cookie
 func ValidateSessionHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	userID, err := GetUserIDFromSessionCookie(request)
 	if err != nil {
 		http.Error(responseWriter, "Invalid session", http.StatusUnauthorized)
+		return
+	}
+
+	cacheKey := fmt.Sprintf("user:%s", userID)
+	cachedUser, err := RedisClient.Get(context.Background(), cacheKey).Result()
+	if err == nil {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.Write([]byte(cachedUser))
 		return
 	}
 
@@ -104,12 +118,15 @@ func ValidateSessionHandler(responseWriter http.ResponseWriter, request *http.Re
 		return
 	}
 
+	userJSON, _ := json.Marshal(map[string]bool{"valid": true})
+	RedisClient.Set(context.Background(), cacheKey, userJSON, 30*time.Minute)
+
 	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(map[string]bool{"valid": true})
+	responseWriter.Write(userJSON)
 }
 
 func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handle {
-	// with context: request is authenticated
+	//use authenticated request (user or admin logged in) as a wrapper around actual request
 	return func(next httprouter.Handle) httprouter.Handle {
 		return func(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
 			sessionID, err := GetSessionIDFromCookie(request)
@@ -133,7 +150,6 @@ func AuthMiddleware(adminRequired bool) func(httprouter.Handle) httprouter.Handl
 				Request: request,
 				User:    user,
 			}
-			// Add the auth request to the context, pass it to the next handler, and then move it along
 			authenticatedContext := context.WithValue(request.Context(), "authRequest", authReq)
 			next(responseWriter, request.WithContext(authenticatedContext), params)
 		}
@@ -148,14 +164,26 @@ func GetAllItemsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Par
 		return
 	}
 
+	cacheKey := "all_items"
+	cachedItems, err := RedisClient.Get(context.Background(), cacheKey).Result()
+
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(cachedItems))
+		return
+	}
+
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
 		http.Error(w, "Error fetching items", http.StatusInternalServerError)
 		return
 	}
 
+	itemsJSON, _ := json.Marshal(items)
+	RedisClient.Set(context.Background(), cacheKey, itemsJSON, 5*time.Minute)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(items)
+	w.Write(itemsJSON)
 }
 
 func CreateItemHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
@@ -176,6 +204,9 @@ func CreateItemHandler(responseWriter http.ResponseWriter, request *http.Request
 		return
 	}
 
+	RedisClient.Del(context.Background(), fmt.Sprintf("user:%s:items", userID))
+	RedisClient.Del(context.Background(), "all_items")
+
 	responseWriter.Header().Set("Content-Type", "application/json")
 	responseWriter.WriteHeader(http.StatusCreated)
 	json.NewEncoder(responseWriter).Encode(item)
@@ -190,6 +221,15 @@ func GetItemByIDHandler(responseWriter http.ResponseWriter, request *http.Reques
 		return
 	}
 
+	cacheKey := fmt.Sprintf("item:%s", itemID)
+	cachedItem, err := RedisClient.Get(context.Background(), cacheKey).Result()
+	if err == nil {
+
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.Write([]byte(cachedItem))
+		return
+	}
+
 	var item model.Item
 	if err := DB.Where("id = ? AND user_id = ?", itemID, userID).First(&item).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -200,8 +240,11 @@ func GetItemByIDHandler(responseWriter http.ResponseWriter, request *http.Reques
 		return
 	}
 
+	itemJSON, _ := json.Marshal(item)
+	RedisClient.Set(context.Background(), cacheKey, itemJSON, 5*time.Minute)
+
 	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(item)
+	responseWriter.Write(itemJSON)
 }
 
 func UpdateItemHandler(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
@@ -237,6 +280,10 @@ func UpdateItemHandler(responseWriter http.ResponseWriter, request *http.Request
 		http.Error(responseWriter, "Error updating item", http.StatusInternalServerError)
 		return
 	}
+
+	RedisClient.Del(context.Background(), fmt.Sprintf("item:%s", itemID))
+	RedisClient.Del(context.Background(), fmt.Sprintf("user:%s:items", userID))
+	RedisClient.Del(context.Background(), "all_items")
 
 	responseWriter.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(responseWriter).Encode(existingItem)
@@ -281,7 +328,6 @@ func UpdateItemHandlerForAdmin(responseWriter http.ResponseWriter, request *http
 func DeleteItemByIDHandler(responseWriter http.ResponseWriter, request *http.Request, params httprouter.Params) {
 	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
 	userID := authReq.User.ID
-	//parse item id and check if it belongs to the user
 	itemID, err := uuid.Parse(params.ByName("id"))
 	if err != nil {
 		http.Error(responseWriter, "Invalid item ID", http.StatusBadRequest)
@@ -292,6 +338,10 @@ func DeleteItemByIDHandler(responseWriter http.ResponseWriter, request *http.Req
 		http.Error(responseWriter, "Error deleting item", http.StatusInternalServerError)
 		return
 	}
+
+	RedisClient.Del(context.Background(), fmt.Sprintf("item:%s", itemID))
+	RedisClient.Del(context.Background(), fmt.Sprintf("user:%s:items", userID))
+	RedisClient.Del(context.Background(), "all_items")
 
 	responseWriter.WriteHeader(http.StatusNoContent)
 }
@@ -305,6 +355,9 @@ func DeleteAllItemsHandler(responseWriter http.ResponseWriter, request *http.Req
 		return
 	}
 
+	RedisClient.Del(context.Background(), fmt.Sprintf("user:%s:items", userID))
+	RedisClient.Del(context.Background(), "all_items")
+
 	responseWriter.WriteHeader(http.StatusNoContent)
 }
 
@@ -312,17 +365,28 @@ func PrefetchItemsHandler(responseWriter http.ResponseWriter, request *http.Requ
 	authReq := request.Context().Value("authRequest").(*AuthenticatedRequest)
 	userID := authReq.User.ID
 
+	cacheKey := fmt.Sprintf("user:%s:items", userID)
+	cachedItems, err := RedisClient.Get(context.Background(), cacheKey).Result()
+	if err == nil {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.Write([]byte(cachedItems))
+		return
+	}
+
 	var items []model.Item
 	if err := DB.Where("user_id = ?", userID).Find(&items).Error; err != nil {
 		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
 		return
 	}
 
+	itemsJSON, _ := json.Marshal(map[string]interface{}{"prefetchedItems": items})
+	RedisClient.Set(context.Background(), cacheKey, itemsJSON, 5*time.Minute)
+
 	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(map[string]interface{}{
-		"prefetchedItems": items,
-	})
+	responseWriter.Write(itemsJSON)
+	return
 }
+
 func PrefetchAllItemsHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {

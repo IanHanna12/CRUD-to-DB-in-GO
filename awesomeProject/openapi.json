@@ -244,10 +244,7 @@
           "isAdmin": {
             "type": "boolean"
           },
-          "session_id": {
-            "type": "string"
-          },
-          "session_token": {
+          "AuthToken": {
             "type": "string"
           }
         }
@@ -267,6 +264,9 @@
           },
           "content": {
             "type": "string"
+          },
+          "permission": {
+            "type": "string"
           }
         }
       },
@@ -282,6 +282,9 @@
           },
           "content": {
             "type": "string"
+          },
+          "permission": {
+            "type": "string"
           }
         }
       },
@@ -295,6 +298,9 @@
             "type": "string"
           },
           "content": {
+            "type": "string"
+          },
+          "permission": {
             "type": "string"
           }
         }
