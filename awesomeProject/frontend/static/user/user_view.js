@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function getSessionTokenFromCookie() {
+    function getauthTokenFromCookie() {
         const cookies = document.cookie.split('; ');
         for (let cookie of cookies) {
             if (cookie.startsWith('AuthToken=')) {
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function fetchWithAuth(url, options = {}) {
-        const AuthToken = getSessionTokenFromCookie();
+        const AuthToken = getauthTokenFromCookie();
         options.headers = {
             ...options.headers,
             'Authorization': `Bearer ${AuthToken}`

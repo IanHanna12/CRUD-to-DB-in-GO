@@ -388,14 +388,29 @@ func PrefetchItemsHandler(responseWriter http.ResponseWriter, request *http.Requ
 }
 
 func PrefetchAllItemsHandler(responseWriter http.ResponseWriter, request *http.Request, _ httprouter.Params) {
+	cacheKey := "all_items"
+	cachedItems, err := RedisClient.Get(context.Background(), cacheKey).Result()
+	if err == nil {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		if _, err := responseWriter.Write([]byte(cachedItems)); err != nil {
+			http.Error(responseWriter, "Error writing response", http.StatusInternalServerError)
+		}
+		return
+	}
+
 	var items []model.Item
 	if err := DB.Find(&items).Error; err != nil {
 		http.Error(responseWriter, "Error fetching items", http.StatusInternalServerError)
 		return
 	}
 
-	responseWriter.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(responseWriter).Encode(map[string]interface{}{
+	itemsJSON, _ := json.Marshal(map[string]interface{}{
 		"prefetchedItems": items,
 	})
+	RedisClient.Set(context.Background(), cacheKey, itemsJSON, 5*time.Minute)
+
+	responseWriter.Header().Set("Content-Type", "application/json")
+	if _, err := responseWriter.Write(itemsJSON); err != nil {
+		http.Error(responseWriter, "Error writing response", http.StatusInternalServerError)
+	}
 }

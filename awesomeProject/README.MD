@@ -129,3 +129,17 @@
 - Secure Session Management:
   - Session IDs stored as UUIDs in HTTP-only cookies.
   - Auth tokens stored in localStorage for API requests.
+
+
+
+cachetest_____________________________________________________________________________________________
+getitembyIDhandler is caching
+updateitemhandlerforAdmin not really cacheable, no static data (different data each reequest, data is changed)
+updateitemhandler (user) same as updateitemhandlerforadmin, but you can delete old refs
+
+prefetchallitemshandler (admin) is caching
+prefetchitemshandler (user, used with user prefetch) is caching
+
+
+getallitemshandler --> not testable for user because of prefetch using it with auth
+updateitemhandler: no caching necessary, but deleting of old cache entries

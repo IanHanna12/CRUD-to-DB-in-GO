@@ -179,11 +179,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchWithAuth(url, options = {}) {
-        const sessionToken = getSessionTokenFromCookie();
+        const authToken = getauthTokenFromCookie();
         if (!options.headers) {
             options.headers = {};
         }
-        options.headers['Authorization'] = `Bearer ${sessionToken}`;
+        options.headers['Authorization'] = `Bearer ${authToken}`;
         options.credentials = 'include';
         return fetch(url, options)
             .then(response => {
@@ -199,10 +199,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    function getSessionTokenFromCookie() {
+    function getauthTokenFromCookie() {
         const cookies = document.cookie.split('; ');
         for (let cookie of cookies) {
-            if (cookie.startsWith('session_token=')) {
+            if (cookie.startsWith('authToken=')) {
                 return cookie.split('=')[1];
             }
         }

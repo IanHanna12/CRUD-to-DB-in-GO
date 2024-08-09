@@ -68,34 +68,15 @@
             "description": "Unauthorized"
           }
         }
-      }
-    },
-    "/items/create": {
-      "post": {
-        "summary": "Create a new item",
-        "operationId": "createItem",
+      },
+      "delete": {
+        "summary": "Delete all items (admin only)",
+        "operationId": "deleteAllItems",
         "tags": ["items"],
         "security": [{ "Auth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ItemCreate"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
-            "description": "Item created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Item"
-                }
-              }
-            }
+          "204": {
+            "description": "All items deleted successfully"
           },
           "401": {
             "description": "Unauthorized"
@@ -136,6 +117,39 @@
           },
           "404": {
             "description": "Item not found"
+          }
+        }
+      }
+    },
+    "/items/create": {
+      "post": {
+        "summary": "Create a new item",
+        "operationId": "createItem",
+        "tags": ["items"],
+        "security": [{ "Auth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Item created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
           }
         }
       }
@@ -216,6 +230,105 @@
           }
         }
       }
+    },
+    "/items/prefetch": {
+      "get": {
+        "summary": "Prefetch items",
+        "operationId": "prefetchItems",
+        "tags": ["items"],
+        "security": [{ "Auth": [] }],
+        "responses": {
+          "200": {
+            "description": "Successful prefetch of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Item"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/items/prefetch/all": {
+      "get": {
+        "summary": "Prefetch all items (admin only)",
+        "operationId": "prefetchAllItems",
+        "tags": ["items"],
+        "security": [{ "Auth": [] }],
+        "responses": {
+          "200": {
+            "description": "Successful prefetch of all items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Item"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/items/admin/update/{id}": {
+      "put": {
+        "summary": "Update an item (admin only)",
+        "operationId": "updateItemAdmin",
+        "tags": ["items"],
+        "security": [{ "Auth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Item updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Item not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -265,8 +378,9 @@
           "content": {
             "type": "string"
           },
-          "permission": {
-            "type": "string"
+          "userID": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -282,9 +396,6 @@
           },
           "content": {
             "type": "string"
-          },
-          "permission": {
-            "type": "string"
           }
         }
       },
@@ -298,9 +409,6 @@
             "type": "string"
           },
           "content": {
-            "type": "string"
-          },
-          "permission": {
             "type": "string"
           }
         }

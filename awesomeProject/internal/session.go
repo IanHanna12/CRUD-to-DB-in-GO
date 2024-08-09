@@ -8,19 +8,19 @@ import (
 
 func SetSessionCookie(w http.ResponseWriter, userID uuid.UUID) (string, string) {
 	sessionID := uuid.New().String()
-	sessionToken := uuid.New().String()
+	authToken := uuid.New().String()
 
 	cookie := &http.Cookie{
 		Name:     "session_id",
 		Value:    sessionID,
 		HttpOnly: true,
 		Secure:   false,
-		SameSite: http.SameSiteStrictMode,
-		Expires:  time.Now().Add(24 * time.Hour),
+
+		Expires: time.Now().Add(24 * time.Hour),
 	}
 	http.SetCookie(w, cookie)
 
-	return sessionID, sessionToken
+	return sessionID, authToken
 }
 
 func GetUserIDFromSessionCookie(r *http.Request) (uuid.UUID, error) {
